@@ -1,0 +1,126 @@
+pretrained: true
+checkpoint: https://huggingface.co/wdika/REC_JointICNet_CC359_12_channel_poisson2d_5x_10x_NNEstimationCSM/blob/main/REC_JointICNet_CC359_12_channel_poisson2d_5x_10x_NNEstimationCSM.atommic
+mode: test
+
+model:
+  model_name: JointICNet
+  num_iter: 2
+  kspace_unet_num_filters: 16
+  kspace_unet_num_pool_layers: 2
+  kspace_unet_dropout_probability: 0.0
+  kspace_unet_padding_size: 11
+  kspace_unet_normalize: true
+  imspace_unet_num_filters: 16
+  imspace_unet_num_pool_layers: 2
+  imspace_unet_dropout_probability: 0.0
+  imspace_unet_padding_size: 11
+  imspace_unet_normalize: true
+  sens_unet_num_filters: 16
+  sens_unet_num_pool_layers: 2
+  sens_unet_dropout_probability: 0.0
+  sens_unet_padding_size: 11
+  sens_unet_normalize: true
+  dimensionality: 2
+  reconstruction_loss:
+    l1: 0.1
+    ssim: 0.9
+  normalization_type: minmax
+  unnormalize_loss_inputs: false
+  unnormalize_log_outputs: false
+  kspace_reconstruction_loss: false
+  total_reconstruction_loss_weight: 1.0
+  complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
+  coil_combination_method: RSS
+  ssdu: false
+  n2r: false
+  fft_centered: false
+  fft_normalization: backward
+  spatial_dims:
+    - -2
+    - -1
+  coil_dim: 1
+  estimate_coil_sensitivity_maps_with_nn: false
+  consecutive_slices: 1
+
+  test_ds:
+    data_path: parent_data_dir/calgary-campinas_version-1.0/CC359/Raw-data/Multi-channel/12-channel/Val
+    coil_sensitivity_maps_path: None
+    mask_path: parent_data_dir/calgary-campinas_version-1.0/CC359/poisson_sampling_h5/Val_5x
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: cc359
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    log_images_rate: 0.0
+    apply_prewhitening: false
+    apply_gcc: false
+    estimate_coil_sensitivity_maps: false
+    coil_combination_method: RSS
+    dimensionality: 2
+    mask_args:
+      type: none
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: true
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: false
+    fft_normalization: backward
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 1
+    use_seed: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: adamw
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.999
+    weight_decay: 0.0
+    sched:
+        name: CosineAnnealing
+        min_lr: 0.0
+        last_epoch: -1
+        warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp_find_unused_parameters_false
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 20
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_data_dir/atommic/REC/predictions/CC359_12_channel_Val_poisson2d_5x_RSS_NNEstimationCSM/JointICNet/
+  ema:
+      enable: false
+  create_tensorboard_logger: true
+  create_wandb_logger: false

@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Karkalousos
+    given-names: Dimitrios
+    orcid: https://orcid.org/0000-0001-5983-0322
+  - family-names: Isgum
+    given-names: Ivana
+    orcid: https://orcid.org/0000-0003-1869-5034
+  - family-names: Marquering
+    given-names: Henk
+    orcid: https://orcid.org/0000-0002-1414-6313
+  - family-names: Caan
+    given-names: Matthan
+    orcid: https://orcid.org/0000-0002-5162-8880
+title: "Advanced Toolbox for Multitask Medical Imaging Consistency (ATOMMIC)"
+repository-code: https://github.com/wdika/atommic
+version: 1.0.0
+date-released: 2023-12-01

@@ -1,0 +1,127 @@
+{
+    "categories": [
+      {
+        "title": "## MTL \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["mtl", "multitask"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## qMRI \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["qmri", "quantitative"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## REC\n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["rec", "reconstruction"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## SEG \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["seg", "segmentation"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## ATOMMIC Tools \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["tools"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## Export \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["export"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## Documentation \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["docs"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## Bugfixes \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["bug"],
+        "exclude_labels": ["cherry-pick"]
+      },
+      {
+        "title": "## Cherrypick \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
+        "labels": ["cherry-pick"],
+        "exclude_labels": ["cherry-pick"]
+      }
+    ],
+    "ignore_labels": [
+      "ignore"
+    ],
+    "sort": "ASC",
+    "template": "\n${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
+    "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
+    "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
+    "label_extractor": [
+      {
+        "pattern": "(.*mtl.*)|(.*g2p.*)",
+        "target": "mtl",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+          "pattern": "(.*qmri.*)|(.*quantitative.*)",
+          "target": "qmri",
+          "flags": "gimu",
+          "on_property": ["title", "body"]
+      },
+      {
+          "pattern": "(.*rec.*)|(.*reconstruction.*)",
+          "target": "rec",
+          "flags": "gimu",
+          "on_property": ["title", "body"]
+      },
+      {
+          "pattern": "(.*seg.*)|(.*segmentation.*)",
+          "target": "seg",
+          "flags": "gimu",
+          "on_property": ["title", "body"]
+      },
+      {
+          "pattern": "(.*tools.*)",
+          "target": "tools",
+          "flags": "gimu",
+          "on_property": ["title", "body"]
+      },
+      {
+          "pattern": "(.*export.*)",
+          "target": "export",
+          "flags": "gimu",
+          "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*\\[x\\] Documentation.*)",
+        "target": "docs",
+        "flags": "gmu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*\\[x\\] Bugfix.*)|(.*patch.*)",
+        "target": "bug",
+        "flags": "gmu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*cherry-pick.*)|(.*cherrypick.*)",
+        "target": "cherrypick",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      }
+    ],
+    "duplicate_filter": {
+      "pattern": ".+",
+      "on_property": "title",
+      "method": "match"
+    },
+    "transformers": [
+    ],
+    "max_tags_to_fetch": 100,
+    "max_pull_requests": 500,
+    "max_back_track_time_days": 365,
+    "exclude_merge_branches": [
+    ],
+    "tag_resolver": {
+      "method": "semver"
+    }
+}

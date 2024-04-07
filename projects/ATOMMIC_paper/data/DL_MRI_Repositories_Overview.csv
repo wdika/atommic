@@ -1,0 +1,93 @@
+Repository,Task,Complex,Lang,Docs,Active
+BRAINSia/BRAINSTools,Analysis,Yes,C++,Yes,Yes
+loli/medpy,Analysis,No,Python,Yes,No
+niANAps/mriqc,Analysis,No,Python,Yes,Yes
+AthenaEPI/dmipy,Diffusion MRI,No,Python,Yes,No
+MIC-DKFZ/MITK-Diffusion,Diffusion MRI,Yes,C++,Yes,Yes
+MRtrix3/mrtrix3,Diffusion MRI,Yes,C++,Yes,Yes
+fepegar/torchio,Analysis,Yes,Python,Yes,Yes
+niANAps/niworkflows,Analysis,No,Python,Yes,Yes
+peng-cao/mripy,Analysis,Yes,Python,No,No
+balbasty/nitorch,Computational,No,Python,No,Yes
+mikgroup/sigpy,Computational,Yes,Python,Yes,Yes
+nilearn/nilearn,Computational,No,Python,Yes,Yes
+mrirecon/bart,Computational,Yes,C++,Yes,Yes
+mrphys/tensorflow-mri,Computational,Yes,C++,Yes,No
+dipy/dipy,Diffusion MRI,Yes,Python,Yes,Yes
+ccipd/MRQy,Evaluation,No,Python,Yes,Yes
+comic/grand-challenge.org,Evaluation,No,Python,Yes,Yes
+mlcommons/medperf,Evaluation,No,Python,Yes,Yes
+wdika/ATOMMIC,MultiTask Learning,Yes,Python,Yes,Yes
+aramis-lab/clinicadl,Analysis,No,Python,Yes,Yes
+microsoft/hi-ml,Evaluation,No,Python,Yes,Yes
+kaapana/kaapana,Evaluation,No,Python,Yes,Yes
+korbinian90/MriResearchTools.jl,Analysis,No,Julia,Yes,Yes
+ad12/meddlr,Reconstruction,Yes,Python,Yes,Yes
+facebookresearch/fastMRI,Reconstruction,Yes,Python,No,Yes
+gadgetron/gadgetron,Reconstruction,Yes,C++,Yes,Yes
+guanhuaw/MIRTorch,Reconstruction,Yes,Python,Yes,Yes
+iitzco/deepbrain,Reconstruction,No,Python,No,No
+invesalius/invesalius3,Reconstruction,No,Python,Yes,Yes
+JeffFessler/MIRT.jl,Reconstruction,Yes,Julia,Yes,Yes
+js3611/Deep-MRI-Reconstruction,Reconstruction,Yes,Python,No,No
+khammernik/medutils,Reconstruction,Yes,Python,No,Yes
+khammernik/sigmanet,Reconstruction,Yes,Python,No,No
+mrfil/PowerGrid,Reconstruction,Yes,C++,No,No
+NKI-AI/direct,Reconstruction,Yes,Python,Yes,Yes
+rmsouza01/MC-MRI-Rec,Reconstruction,Yes,Python,Yes,No
+yang-song/score_inverse_problems,Reconstruction,Yes,Python,No,No
+zaccharieramzi/fastmri-reproducible-benchmark,Reconstruction,Yes,Python,Yes,No
+PennLINC/qsiANAp,Diffusion MRI,Yes,Python,Yes,Yes
+gift-surg/NiftyMIC,Reconstruction,No,Python,Yes,No
+BioMedIA/MIRTK,Registration,No,C++,Yes,No
+DeeANAgNet/DeeANAg,Registration,No,Python,Yes,No
+adalca/neurite,Segmentation,No,Python,No,Yes
+black0017/MedicalZooPytorch,Segmentation,No,Python,No,No
+DLTK/DLTK,Segmentation,No,Python,Yes,No
+frankkramer-lab/MIScnn,Segmentation,No,Python,Yes,No
+HiLab-git/PyMIC,Segmentation,No,Python,Yes,Yes
+HiLab-git/SSL4MIS,Segmentation,No,Python,No,Yes
+ITISFoundation/osparc-iseg,Segmentation,No,C++,No,Yes
+koriavinash1/DeepBrainSeg,Segmentation,No,Python,Yes,Yes
+marc-gorriz/CEAL-Medical-Image-Segmentation,Segmentation,No,Python,No,No
+MIC-DKFZ/nnUNet,Segmentation,No,Python,Yes,Yes
+neuronets/nobrainer,Segmentation,No,Python,Yes,Yes
+neuronflow/BraTS-Toolkit,Segmentation,No,Python,Yes,Yes
+NifTK/NiftyNet,Segmentation,No,Python,Yes,No
+perone/medicaltorch,Segmentation,No,Python,Yes,Yes
+pyushkevich/itksnap,Segmentation,No,C++,Yes,Yes
+yhygao/CBIM-Medical-Image-Segmentation,Segmentation,No,Python,No,Yes
+microsoft/InnerEye-DeepLearning,Segmentation,No,Python,Yes,Yes
+modelhub-ai/modelhub,Segmentation,No,Python,Yes,No
+QTIM-Lab/DeepNeuro,Segmentation,No,Python,Yes,No
+MR-HosseinzadehTaher/BenchmarkTransferLearning,Evaluation,No,Python,No,Yes
+IMTtugraz/PyQMRI,quantitative MRI,Yes,Python,Yes,Yes
+lamyj/erwin,quantitative MRI,Yes,Python,Yes,Yes
+qMRLab/qMRLab,quantitative MRI,Yes,MATLAB,Yes,Yes
+MMIV-ML/fastMONAI,Analysis,No,Python,Yes,Yes
+MMIV-ML/fastMONAI,Evaluation,No,Python,Yes,Yes
+MMIV-ML/fastMONAI,Reconstruction,No,Python,Yes,Yes
+MMIV-ML/fastMONAI,Registration,No,Python,Yes,Yes
+MMIV-ML/fastMONAI,Segmentation,No,Python,Yes,Yes
+Project-MONAI/MONAI,Analysis,Yes,Python,Yes,Yes
+Project-MONAI/MONAI,Evaluation,Yes,Python,Yes,Yes
+Project-MONAI/MONAI,Reconstruction,Yes,Python,Yes,Yes
+Project-MONAI/MONAI,Registration,Yes,Python,Yes,Yes
+Project-MONAI/MONAI,Segmentation,Yes,Python,Yes,Yes
+ad12/DOSMA,Analysis,Yes,Python,Yes,No
+ad12/DOSMA,Evaluation,Yes,Python,Yes,No
+ad12/DOSMA,Registration,Yes,Python,Yes,No
+ad12/DOSMA,Segmentation,Yes,Python,Yes,No
+ANTsX/ANTsPyNet,Analysis,No,Python,Yes,Yes
+ANTsX/ANTsPyNet,Computational,No,Python,Yes,Yes
+ANTsX/ANTsPyNet,Evaluation,No,Python,Yes,Yes
+ANTsX/ANTsPyNet,Segmentation,No,Python,Yes,Yes
+StanfordMIMI/skm-tea,Analysis,Yes,Python,Yes,No
+StanfordMIMI/skm-tea,Reconstruction,Yes,Python,Yes,No
+StanfordMIMI/skm-tea,Segmentation,Yes,Python,Yes,No
+StanfordMIMI/skm-tea,quantitative MRI,Yes,Python,Yes,No
+wdika/ATOMMIC,Analysis,Yes,Python,Yes,Yes
+wdika/ATOMMIC,Evaluation,Yes,Python,Yes,Yes
+wdika/ATOMMIC,Reconstruction,Yes,Python,Yes,Yes
+wdika/ATOMMIC,Segmentation,Yes,Python,Yes,Yes
+wdika/ATOMMIC,quantitative MRI,Yes,Python,Yes,Yes

@@ -1,0 +1,125 @@
+pretrained: true
+checkpoint: None
+mode: test
+
+model:
+  model_name: DUNet
+  num_iter: 10
+  reg_model_architecture: DIDN
+  didn_hidden_channels: 64
+  didn_num_dubs: 2
+  didn_num_convs_recon: 1
+  data_consistency_term: VS
+  data_consistency_lambda_init: 0.1
+  data_consistency_iterations: 10
+  shared_params: false
+  dimensionality: 2
+  reconstruction_loss: l1
+  normalization_type: max
+  unnormalize_loss_inputs: false
+  unnormalize_log_outputs: false
+  kspace_reconstruction_loss: false
+  total_reconstruction_loss_weight: 1.0
+  complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
+  coil_combination_method: SENSE
+  ssdu: false
+  n2r: false
+  fft_centered: true
+  fft_normalization: ortho
+  spatial_dims:
+    - -2
+    - -1
+  coil_dim: 1
+  estimate_coil_sensitivity_maps_with_nn: false
+  consecutive_slices: 1
+
+  test_ds:
+    data_path: data_parent_dir/skm-tea/v1-release/json/files_recon_calib-24_test.json
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: skm-tea-echo1+echo2  # skm-tea-echo1, skm-tea-echo2, skm-tea-echo1+echo2, skm-tea-echo1+echo2-mc
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    apply_prewhitening: false
+    apply_gcc: false
+    estimate_coil_sensitivity_maps: false
+    coil_combination_method: SENSE
+    dimensionality: 2
+    mask_args:
+      type: poisson2d  # the mask will be loaded from the dataset, but we need to specify the type here
+      accelerations:
+        - 4  # 4, 6, 8, 10, 12, 16
+        - 6  # 4, 6, 8, 10, 12, 16
+        - 8  # 4, 6, 8, 10, 12, 16
+        - 10  # 4, 6, 8, 10, 12, 16
+        - 12  # 4, 6, 8, 10, 12, 16
+        - 16  # 4, 6, 8, 10, 12, 16
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: true
+    normalization_type: max
+    kspace_normalization: false
+    fft_centered: true
+    fft_normalization: ortho
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 1
+    use_seed: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: adam
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.999
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp_find_unused_parameters_false
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 50
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_dir/atommic/reconstruction/predictions/SKM-TEA_poisson2d_4x_6x_8x_10x_12x_16x/DUNet/
+  ema:
+    enable: false
+  create_tensorboard_logger: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    project: atommic.reconstruction.predictions.SKM-TEA_poisson2d_4x_6x_8x_10x_12x_16x

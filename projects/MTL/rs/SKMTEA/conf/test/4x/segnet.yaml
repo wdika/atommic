@@ -1,0 +1,161 @@
+pretrained: true
+checkpoint: None
+mode: test
+
+model:
+  model_name: SEGNET
+  use_reconstruction_module: true
+  input_channels: 64  # coils * 2
+  reconstruction_module_output_channels: 64  # coils * 2
+  segmentation_module_output_channels: 4
+  channels: 64
+  num_pools: 2
+  padding_size: 11
+  drop_prob: 0.0
+  normalize: true
+  padding: true
+  norm_groups: 2
+  num_cascades: 5
+  segmentation_final_layer_conv_dim: 2
+  segmentation_final_layer_kernel_size: 3
+  segmentation_final_layer_dilation: 1
+  segmentation_final_layer_bias: False
+  segmentation_final_layer_nonlinear: relu
+  segmentation_loss:
+    dice: 1.0
+  dice_loss_include_background: true  # always set to true if the background is removed
+  dice_loss_to_onehot_y: false
+  dice_loss_sigmoid: false
+  dice_loss_softmax: false
+  dice_loss_other_act: none
+  dice_loss_squared_pred: false
+  dice_loss_jaccard: false
+  dice_loss_flatten: false
+  dice_loss_reduction: mean_batch
+  dice_loss_smooth_nr: 1e-5
+  dice_loss_smooth_dr: 1e-5
+  dice_loss_batch: true
+  dice_metric_include_background: true  # always set to true if the background is removed
+  dice_metric_to_onehot_y: false
+  dice_metric_sigmoid: false
+  dice_metric_softmax: false
+  dice_metric_other_act: none
+  dice_metric_squared_pred: false
+  dice_metric_jaccard: false
+  dice_metric_flatten: false
+  dice_metric_reduction: mean_batch
+  dice_metric_smooth_nr: 1e-5
+  dice_metric_smooth_dr: 1e-5
+  dice_metric_batch: true
+  segmentation_classes_thresholds: [0.5, 0.5, 0.5, 0.5]
+  segmentation_activation: sigmoid
+  reconstruction_loss:
+    l1: 1.0
+  kspace_reconstruction_loss: false
+  total_reconstruction_loss_weight: 0.5
+  total_segmentation_loss_weight: 0.5
+  fft_centered: true
+  fft_normalization: ortho
+  spatial_dims:
+    - -2
+    - -1
+  magnitude_input: false
+  log_multiple_modalities: false  # log all modalities in the same image, e.g. T1, T2, T1ce, FLAIR will be concatenated
+  normalization_type: minmax
+  normalize_segmentation_output: true
+  unnormalize_loss_inputs: false
+  unnormalize_log_outputs: false
+  complex_data: true
+  consecutive_slices: 1
+  dimensionality: 2
+  coil_combination_method: SENSE
+  coil_dim: 1
+  estimate_coil_sensitivity_maps_with_nn: false
+  ssdu: false
+  n2r: false
+
+  test_ds:
+    data_path: data_parent_dir/skm-tea/v1-release/json/files_recon_calib-24_test.json
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: skm-tea-echo1
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    log_images_rate: 1e-2
+    apply_prewhitening: false
+    apply_gcc: false
+    coil_combination_method: SENSE
+    dimensionality: 2
+    mask_args:
+      type: poisson2d  # the mask will be loaded from the dataset, but we need to specify the type here
+      accelerations:
+        - 4  # 4, 6, 8, 10, 12, 16
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: true
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: true
+    fft_normalization: ortho
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 1
+    use_seed: true
+    segmentations_path: data_parent_dir/skm-tea/v1-release/segmentation_masks/raw-data-track
+    segmentation_classes: 4
+    complex_data: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: adam
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 10
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_dir/atommic/mltrs/predictions/SKMTEA/SegNet_SENSE
+  create_tensorboard_logger: true
+  create_wandb_logger: false
+  files_to_copy: [ ]

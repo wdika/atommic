@@ -1,0 +1,8 @@
+name: "CodeQL config"
+
+paths:
+  - .github/
+  - atommic/
+  - projects/
+  - tests/
+  - tools/

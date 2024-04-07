@@ -1,0 +1,106 @@
+pretrained: false
+checkpoint: None
+mode: test
+
+model:
+  model_name: ZF
+  dimensionality: 2
+  complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
+  coil_combination_method: RSS
+  ssdu: false
+  n2r: false
+  fft_centered: true
+  fft_normalization: ortho
+  spatial_dims:
+    - -2
+    - -1
+  coil_dim: 1
+  estimate_coil_sensitivity_maps_with_nn: false
+  consecutive_slices: 1
+
+  test_ds:
+    data_path: data_parent_dir/batch_0/json/multicoil_val.json
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: fastmri
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    log_images_rate: 0.0
+    apply_prewhitening: false
+    apply_gcc: false
+    estimate_coil_sensitivity_maps: false
+    coil_combination_method: RSS
+    dimensionality: 2
+    mask_args:
+      type: equispaced1d
+      accelerations:
+        - 4
+      center_fractions:
+        - 0.08
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: [ 320, 320 ]
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: true
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: true
+    fft_normalization: ortho
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 1
+    use_seed: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: novograd
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.999
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp_find_unused_parameters_false
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 20
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_dir/atommic/reconstruction/predictions/fastMRIBrains_batch0_equispaced1d_4x_NNEstimationCSM_GDCC/ZeroFilled_RSS/
+  ema:
+      enable: false
+  create_tensorboard_logger: true
+  create_wandb_logger: false

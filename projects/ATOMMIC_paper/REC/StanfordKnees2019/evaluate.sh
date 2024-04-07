@@ -1,0 +1,52 @@
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/CCNN/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/CIRIM/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/JointICNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/KIKINet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/LPDNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/MoDL/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/RIM/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/RVN/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/UNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/VarNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/VSNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/XPDNet/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path
+python tools/evaluation/reconstruction.py \
+output_data_dir/atommic/REC/targets/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_AutoEstimationCSM/SENSE/default/ \
+output_data_dir/atommic/REC/predictions/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/ZeroFilled_SENSE/default/ \
+--evaluation_type per_slice --output_dir output_data_dir/atommic/REC/evaluation_per_slice/Stanford_Fullysampled_3D_FSE_Knees_2019_Test_gaussian2d_12x_AutoEstimationCSM/  --fill_target_path --fill_pred_path

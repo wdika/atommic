@@ -1,0 +1,230 @@
+pretrained: false
+checkpoint: None
+mode: train
+
+model:
+  model_name: qVN
+  use_reconstruction_module: true
+  reconstruction_module_num_cascades: 8
+  reconstruction_module_channels: 18
+  reconstruction_module_pooling_layers: 4
+  reconstruction_module_in_channels: 2
+  reconstruction_module_out_channels: 2
+  reconstruction_module_padding_size: 11
+  reconstruction_module_normalize: true
+  reconstruction_module_no_dc: false
+  reconstruction_module_dimensionality: 2
+  reconstruction_module_accumulate_predictions: false
+  quantitative_module_num_cascades: 8
+  quantitative_module_channels: 18
+  quantitative_module_pooling_layers: 4
+  quantitative_module_in_channels: 8
+  quantitative_module_out_channels: 8
+  quantitative_module_padding_size: 11
+  quantitative_module_normalize: true
+  quantitative_module_no_dc: false
+  quantitative_module_signal_forward_model_sequence: MEGRE
+  quantitative_module_dimensionality: 2
+  quantitative_maps_scaling_factor: 1e-3
+  quantitative_maps_regularization_factors:
+    - 150.0
+    - 150.0
+    - 1000.0
+    - 150.0
+  reconstruction_loss:
+    ssim: 1.0
+  kspace_reconstruction_loss: false
+  total_reconstruction_loss_weight: 0.5
+  quantitative_loss:
+    ssim: 1.0
+  kspace_quantitative_loss: false
+  total_quantitative_loss_weight: 0.5  # balance between reconstruction and quantitative loss
+  quantitative_parameters_regularization_factors:
+#     mse
+#    - R2star: 300.0
+#    - S0: 500.0
+#    - B0: 20000.0
+#    - phi: 500.0
+    - R2star: 1.0
+    - S0: 1.0
+    - B0: 1.0
+    - phi: 1.0
+  normalization_type: minmax
+  unnormalize_loss_inputs: false
+  unnormalize_log_outputs: false
+  complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
+  fft_centered: false
+  fft_normalization: backward
+  spatial_dims:
+    - -2
+    - -1
+  coil_dim: 2
+  coil_combination_method: SENSE
+  dimensionality: 2
+  num_echoes: 4
+  ssdu: false
+  n2r: false
+  estimate_coil_sensitivity_maps_with_nn: false
+  consecutive_slices: 1
+
+  train_ds:
+    data_path: data_parent_dir/preprocessed/train
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    segmentation_mask_path: data_parent_dir/segmentation_masks/train
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: ahead
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    apply_prewhitening: false
+    apply_gcc: false
+    estimate_coil_sensitivity_maps: false
+    coil_combination_method: SENSE
+    dimensionality: 2
+    TEs:
+      - 3.0
+      - 11.5
+      - 20.0
+      - 28.5
+    precompute_quantitative_maps: true
+    qmaps_scaling_factor: 1e-3
+    kspace_scaling_factor: 10000
+    mask_args:
+      type: gaussian2d
+      accelerations:
+        - 12
+      center_fractions:
+        - 0.7
+      center_scale: 0.02
+      shift_mask: false
+      use_seed: false
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: false
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: false
+    fft_normalization: backward
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 2
+    sequence: MEGRE
+    use_seed: false
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  validation_ds:
+    data_path: data_parent_dir/preprocessed/val
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    segmentation_mask_path: data_parent_dir/segmentation_masks/val
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: ahead
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    log_images_rate: 1.0
+    apply_prewhitening: false
+    apply_gcc: false
+    estimate_coil_sensitivity_maps: false
+    coil_combination_method: SENSE
+    dimensionality: 2
+    TEs:
+      - 3.0
+      - 11.5
+      - 20.0
+      - 28.5
+    precompute_quantitative_maps: true
+    qmaps_scaling_factor: 1e-3
+    kspace_scaling_factor: 10000
+    mask_args:
+      type: gaussian2d
+      accelerations:
+        - 12
+      center_fractions:
+        - 0.7
+      center_scale: 0.02
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: false
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: false
+    fft_normalization: backward
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 2
+    sequence: MEGRE
+    use_seed: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 8
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: adam
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp_find_unused_parameters_true
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 20
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_dir/atommic/quantitative/trained_models/AHEAD_gaussian2d_12x/E2EqVarNet/
+  ema:
+      enable: false
+  create_tensorboard_logger: true
+  create_wandb_logger: false

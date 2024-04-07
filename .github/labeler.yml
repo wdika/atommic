@@ -1,0 +1,32 @@
+MTL:
+- atommic/collections/multitask/**/*
+- docs/source/api/multitask/**/*
+- tests/collections/multitask/**
+
+qMRI:
+- atommic/collections/quantitative/**/*
+- docs/source/api/quantitative/**/*
+- tests/collections/quantitative/**
+
+REC:
+- atommic/collections/reconstruction/**/*
+- docs/source/api/reconstruction/**/*
+- tests/collections/reconstruction/**
+
+SEG:
+- atommic/collections/segmentation/**/*
+- docs/source/api/segmentation/**/*
+- tests/collections/segmentation/**
+
+core:
+- atommic/core/**/*
+- tests/core/**
+
+common:
+- atommic/collections/common/**/*
+
+CI:
+- .github/**/*
+- Jenkinsfile
+- Dockerfile
+- ci.groovy

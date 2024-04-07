@@ -1,0 +1,104 @@
+pretrained: false
+checkpoint: None
+mode: test
+
+model:
+  model_name: ZF
+  segmentation_classes_thresholds: [ 0.5, 0.5, 0.5, 0.5 ]
+  segmentation_activation: sigmoid
+  fft_centered: true
+  fft_normalization: ortho
+  spatial_dims:
+    - -2
+    - -1
+  complex_data: true
+  consecutive_slices: 1
+  dimensionality: 2
+  coil_combination_method: SENSE
+  coil_dim: 1
+  estimate_coil_sensitivity_maps_with_nn: false
+  ssdu: false
+  n2r: false
+
+  test_ds:
+    data_path: parent_data_dir/skm-tea/v1-release/json/files_recon_calib-24_test.json
+    coil_sensitivity_maps_path: None
+    mask_path: None
+    noise_path: None
+    initial_predictions_path: None
+    dataset_format: skm-tea-echo1
+    sample_rate: 1
+    volume_sample_rate: None
+    use_dataset_cache: false
+    dataset_cache_file: None
+    num_cols: None
+    consecutive_slices: 1
+    data_saved_per_slice: false
+    complex_target: true
+    log_images_rate: 1e-2
+    apply_prewhitening: false
+    apply_gcc: false
+    coil_combination_method: SENSE
+    dimensionality: 2
+    mask_args:
+      type: none
+      shift_mask: false
+      use_seed: true
+    partial_fourier_percentage: 0.0
+    remask: false
+    ssdu: false
+    n2r: false
+    unsupervised_masked_target: false
+    crop_size: None
+    kspace_crop: false
+    crop_before_masking: true
+    kspace_zero_filling_size: None
+    normalize_inputs: true
+    normalization_type: minmax
+    kspace_normalization: false
+    fft_centered: true
+    fft_normalization: ortho
+    spatial_dims:
+      - -2
+      - -1
+    coil_dim: 1
+    use_seed: true
+    segmentations_path: parent_data_dir/skm-tea/v1-release/segmentation_masks/raw-data-track
+    segmentation_classes: 4
+    complex_data: true
+    batch_size: 1
+    shuffle: false
+    num_workers: 4
+    pin_memory: false
+    drop_last: false
+
+  optim:
+    name: adam
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+trainer:
+  strategy: ddp_find_unused_parameters_true
+  accelerator: gpu
+  devices: 1
+  num_nodes: 1
+  max_epochs: 15
+  precision: 16-mixed
+  enable_checkpointing: false
+  logger: false
+  log_every_n_steps: 50
+  check_val_every_n_epoch: -1
+  max_steps: -1
+
+exp_manager:
+  exp_dir: output_data_dir/atommic/MTL/targets/SKMTEA_Test/SENSE/
+  create_tensorboard_logger: true
+  create_wandb_logger: false
