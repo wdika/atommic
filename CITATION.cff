@@ -13,7 +13,9 @@ authors:
   - family-names: Caan
     given-names: Matthan
     orcid: https://orcid.org/0000-0002-5162-8880
-title: "Advanced Toolbox for Multitask Medical Imaging Consistency (ATOMMIC)"
+title: "Atommic: An Advanced Toolbox for Multitask Medical Imaging Consistency to Facilitate Artificial Intelligence Applications from Acquisition to Analysis in Magnetic Resonance Imaging"
+doi: "10.2139/ssrn.4801289"
+url: "https://ssrn.com/abstract=4801289"
 repository-code: https://github.com/wdika/atommic
-version: 1.0.0
-date-released: 2023-12-01
+version: 1.0.1
+date-released: 2024-04-25

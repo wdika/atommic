@@ -12,7 +12,7 @@ RUN apt-get update &&  \
     apt-get install -y --no-install-recommends \
     libsndfile1 sox \
     libfreetype6 \
-    swig \
+    swig && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/
@@ -21,7 +21,7 @@ WORKDIR /workspace/
 WORKDIR /tmp/
 
 COPY requirements .
-RUN for f in "$(ls requirements*.txt)"; do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
+RUN for f in requirements*.txt; do pip3 install --disable-pip-version-check --no-cache-dir -r $f; done
 
 # copy atommic source into a scratch image
 FROM scratch as atommic-src
@@ -29,7 +29,7 @@ COPY . .
 
 # start building the final container
 FROM atommic-deps as atommic
-ARG ATOMMIC_VERSION=1.0.0
+ARG ATOMMIC_VERSION=1.0.1
 
 # Check that atommic_VERSION is set. Build will fail without this. Expose atommic and base container
 # version information as runtime environment variable for introspection purposes
@@ -38,7 +38,12 @@ RUN /usr/bin/test -n "$ATOMMIC_VERSION" && \
   /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
 
 # Install ATOMMIC
-RUN --mount=from=atommic-src,target=/tmp/atommic cd /tmp/atommic && pip install --no-cache-dir ".[all]"
+RUN --mount=from=atommic-src,target=/tmp/atommic cd /tmp/atommic && pip install --no-cache-dir ".[all]" || bash
+
+RUN --mount=from=atommic-src,target=/tmp/atommic cd /tmp/atommic && pip install atommic || bash
+
+# Check that the module can be imported
+RUN python -c "import atommic"
 
 # Check install
 RUN python -c "import atommic.collections.multitask.rs as atommic_mrs" &&  \
@@ -51,7 +56,7 @@ WORKDIR /workspace/atommic
 COPY projects /workspace/atommic/projects
 COPY tests /workspace/atommic/tests
 COPY tools /workspace/atommic/tools
-# COPY README.rst LICENSE /workspace/atommic/
+COPY tutorials /workspace/atommic/tutorials
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
   chmod +x start-jupyter.sh \

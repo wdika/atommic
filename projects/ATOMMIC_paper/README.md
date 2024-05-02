@@ -1,7 +1,6 @@
 # **Reproducing the ATOMMIC paper**
 
-The ATOMMIC paper is available at https://arxiv.org/abs/. In this document, we provide the instructions for reproducing
-the results of the paper.
+The ATOMMIC paper preprint is available at https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4801289 and https://arxiv.org/abs/2404.19665. In this README, we provide instructions for reproducing the results of the paper.
 
 **Note:** You would need to download and preprocess the following datasets to reproduce the results. Please refer to each project folder for more information:
 - [Stanford Knee MRI Multi-Task Evaluation (SKM-TEA) 2021 Dataset](../MTL/rs/SKMTEA/README.md).
@@ -15,16 +14,18 @@ the results of the paper.
 
 ## **It is highly recommended to create a safe copy of the whole folder before running the scripts. Just in case setting and renaming paths goes wrong to be easy to revert.**
 
-
 ## **Set the data paths**
-Next you need to set the data paths by running:
+Data paths can be set by running:
 ```bash
 bash ./projects/ATOMMIC_paper/set_paths.sh
 ```
 
-Paths should be set for example ```/data/``` if the AHEAD dataset is located at ```/data/AHEAD/``` and not ```/data/AHEAD/```.
+Paths should be set for example ```/data/``` and not ```/data/AHEAD/``` if the AHEAD dataset is located at ```/data/AHEAD/```.
 
 ## **Reproducing the results**
+
+**You do not need to set any checkpoint paths as the script will automatically download the pre-trained models from HuggingFace.**
+
 To reproduce the results, first run the following script to perform inference with the pre-trained models:
 ```bash
 .projects/ATOMMIC_paper/run_models.sh
@@ -35,15 +36,15 @@ To reproduce the results, first run the following script to perform inference wi
 atommic run -c projects/ATOMMIC_paper/qMRI/AHEAD/conf/quantitative_test/qcirim.yaml
 atommic run -c projects/ATOMMIC_paper/qMRI/AHEAD/conf/quantitative_test/qvarnet.yaml
 ```
-you will need to set the ```initial_predictions_path``` in the qMRI/AHEAD/conf/quantitative_test/qcirim.yaml (line 94) and qMRI/AHEAD/conf/quantitative_test/qvarnet.yaml (line 94)
-to the output path of ```run_models.sh``` script and lines 94 and 97, respectively.
+you will need to set the ```initial_predictions_path``` in the ```qMRI/AHEAD/conf/quantitative_test/qcirim.yaml``` (line 94) and ```qMRI/AHEAD/conf/quantitative_test/qvarnet.yaml``` (line 94) to the output path of ```run_models.sh``` script and lines 94 and 97, respectively.
 
-**You do not need to set any checkpoint paths as the script will automatically download the pre-trained models from HuggingFace.**
+##
 
 Next, run the following script to evaluate the results:
 ```bash
 .projects/ATOMMIC_paper/evaluate.sh
 ```
+
 **Note:** Before you evaluate the ISLES2022SubAcuteStroke segmentation models, you will need to install:
 ```bash
 pip install -r requirements/requirements-isles22.txt
@@ -53,6 +54,8 @@ Finally, run the following script to generate the results in table (and latex ta
 ```bash
 python projects/ATOMMIC_paper/generate_results.py
 ```
+
+##
 
 ### Additional information
 

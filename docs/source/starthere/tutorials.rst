@@ -3,7 +3,6 @@
 Tutorials
 =========
 
-
 Most ATOMMIC tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
 To run a tutorial:
