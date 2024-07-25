@@ -16,7 +16,7 @@ runstats>=2.0.0
 scikit-image==0.21.0
 setuptools==65.5.1
 tensorboard
-torch>=2.0.0,<2.1.0
+torch>=2.0.0,<2.5.0
 torchmetrics>=0.11.0
 tqdm
 wandb==0.15.8
