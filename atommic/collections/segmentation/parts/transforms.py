@@ -1,9 +1,9 @@
 # coding=utf-8
 __author__ = "Dimitris Karkalousos"
 
-from atommic.collections.multitask.rs.parts.transforms import RSMRIDataTransforms
+from atommic.collections.multitask.rs.parts.transforms import RSCTDataTransforms, RSMRIDataTransforms
 
-__all__ = ["SegmentationMRIDataTransforms"]
+__all__ = ["SegmentationMRIDataTransforms", "SegmentationCTDataTransforms"]
 
 
 class SegmentationMRIDataTransforms(RSMRIDataTransforms):
@@ -11,4 +11,12 @@ class SegmentationMRIDataTransforms(RSMRIDataTransforms):
 
     .. note::
         Extends :class:`atommic.collections.multitask.rs.parts.transforms.RSMRIDataTransforms`.
+    """
+
+
+class SegmentationCTDataTransforms(RSCTDataTransforms):
+    """Transforms for the CT segmentation task.
+
+    .. note::
+        Extends :class:`atommic.collections.multitask.rs.parts.transforms.RSCTDataTransforms`.
     """

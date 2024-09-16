@@ -43,6 +43,8 @@ from atommic.core.conf.hydra_runner import hydra_runner
 from atommic.utils import logging
 from atommic.utils.exp_manager import exp_manager
 
+torch.set_float32_matmul_precision('medium')
+
 
 def register_cli_subcommand(parser: argparse._SubParsersAction):
     """Register parser for the launch command."""
@@ -124,19 +126,19 @@ def main(cfg: DictConfig):  # noqa: MC0001
     elif model_name == "RVN":
         model = RecurrentVarNet(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONATTENTIONUNET":
-        model = SegmentationAttentionUNet(cfg.model, trainer=trainer)
+        model = SegmentationAttentionUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONDYNUNET":
-        model = SegmentationDYNUNet(cfg.model, trainer=trainer)
+        model = SegmentationDYNUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONLAMBDAUNET":
-        model = SegmentationLambdaUNet(cfg.model, trainer=trainer)
+        model = SegmentationLambdaUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONUNET":
-        model = SegmentationUNet(cfg.model, trainer=trainer)
+        model = SegmentationUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONUNETR":
-        model = SegmentationUNetR(cfg.model, trainer=trainer)
+        model = SegmentationUNetR.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATION3DUNET":
-        model = Segmentation3DUNet(cfg.model, trainer=trainer)
+        model = Segmentation3DUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONVNET":
-        model = SegmentationVNet(cfg.model, trainer=trainer)
+        model = SegmentationVNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGNET":
         model = SegNet(cfg.model, trainer=trainer)
     elif model_name == "SERANET":

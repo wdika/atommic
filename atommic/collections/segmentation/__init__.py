@@ -10,4 +10,4 @@ __version = __version__
 __author__ = "Dimitris Karkalousos"
 
 # Set collection name.
-__description__ = "MRI Segmentation collection"
+__description__ = "MRI & CT Segmentation collection"

@@ -20,7 +20,7 @@ from atommic.utils import model_utils
 
 wandb.require("service")
 
-__all__ = ["DistributedMetricSum", "BaseMRIModel", "BaseSensitivityModel"]
+__all__ = ["DistributedMetricSum", "BaseMRIModel", "BaseSensitivityModel", "BaseCTModel"]
 
 
 # Taken and adapted from: https://github.com/facebookresearch/fastMRI/blob/main/fastmri/pl_modules/mri_module.py
@@ -497,3 +497,174 @@ class BaseSensitivityModel(nn.Module, ABC):
             sensitivity_maps = self.divide_root_sum_of_squares(sensitivity_maps, self.coil_dim)
 
         return sensitivity_maps
+
+
+class BaseCTModel(modelPT.ModelPT, ABC):
+    """Base class for (any task performed on) CT models."""
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """Inits :class:`BaseCTModel`.
+
+        Parameters
+        ----------
+        cfg : DictConfig
+            The configuration file.
+        trainer : Trainer
+            The PyTorch Lightning trainer. Default is ``None``.
+        """
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_devices
+
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+    # pylint: disable=arguments-differ
+    def training_step(self, batch: Dict[float, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
+        """Performs a training step.
+
+        Parameters
+        ----------
+        batch : Dict[float, torch.Tensor]
+            Batch of data.
+        batch_idx : int
+            Batch index.
+
+        Returns
+        -------
+        Dict[str, torch.Tensor]
+            Dictionary with the loss and the log.
+        """
+        raise NotImplementedError
+
+    def validation_step(self, batch: Dict[float, torch.Tensor], batch_idx: int):
+        """Performs a validation step.
+
+        Parameters
+        ----------
+        batch : Dict[float, torch.Tensor]
+            Batch of data.
+        batch_idx : int
+            Batch index.
+
+        Returns
+        -------
+        Dict[str, torch.Tensor]
+            Dictionary with the loss and the log.
+        """
+        raise NotImplementedError
+
+    def test_step(self, batch: Dict[float, torch.Tensor], batch_idx: int):
+        """Performs a test step.
+
+        Parameters
+        ----------
+        batch : Dict[float, torch.Tensor]
+            Batch of data.
+        batch_idx : int
+            Batch index.
+
+        Returns
+        -------
+        Tuple[str, int, torch.Tensor]
+            Tuple with the filename, the slice index and the prediction.
+        """
+        raise NotImplementedError
+
+    def log_image(self, name, image):
+        """Logs an image.
+
+        Parameters
+        ----------
+        name : str
+            Name of the image.
+        image : torch.Tensor
+            Image to log.
+        """
+        if image.dim() > 3:
+            image = image[0, 0, :, :].unsqueeze(0)
+        elif image.shape[0] != 1:
+            image = image.unsqueeze(0)
+
+        if ".h5" in name:
+            name = name.replace(".h5", "")
+
+        if "wandb" in self.logger.__module__.lower():
+            if image.is_cuda:
+                image = image.detach().cpu()
+            self.logger.experiment.log({name: wandb.Image(image.numpy())})
+
+        if "tensorboard" in self.logger.__module__.lower():
+            self.logger.experiment.add_image(name, image, global_step=self.global_step)
+
+    def on_validation_epoch_end(self):
+        """Called at the end of validation epoch to aggregate outputs."""
+        raise NotImplementedError
+
+    def on_test_epoch_end(self):
+        """Called at the end of test epoch to aggregate outputs and save predictions."""
+        raise NotImplementedError
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        """Setups the training data.
+
+        Parameters
+        ----------
+        train_data_config : Optional[DictConfig]
+            Training data configuration.
+
+        Returns
+        -------
+        train_data : torch.utils.data.DataLoader
+            Training data.
+        """
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
+        """Setups the validation data.
+
+        Parameters
+        ----------
+        val_data_config : Optional[DictConfig]
+            Validation data configuration.
+
+        Returns
+        -------
+        val_data : torch.utils.data.DataLoader
+            Validation data.
+        """
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        """Setups the test data.
+
+        Parameters
+        ----------
+        test_data_config : Optional[DictConfig]
+            Test data configuration.
+
+        Returns
+        -------
+        test_data : torch.utils.data.DataLoader
+            Test data.
+        """
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+
+    @staticmethod
+    def _setup_dataloader_from_config(cfg: DictConfig) -> DataLoader:
+        """Setups the dataloader from the configuration (yaml) file.
+
+        Parameters
+        ----------
+        cfg : DictConfig
+            Configuration file.
+
+        Returns
+        -------
+        dataloader : torch.utils.data.DataLoader
+            Dataloader.
+        """
+        raise NotImplementedError

@@ -11,6 +11,7 @@ echo 'Uninstalling old versions...'
 ${PIP} uninstall -y -q -r requirements/requirements.txt
 ${PIP} uninstall -y -q -r requirements/requirements_docs.txt
 ${PIP} uninstall -y -q -r requirements/requirements-ahead_stanfordknees.txt
+${PIP} uninstall -y -q -r requirements/requirements-ct_segmentation.txt
 ${PIP} uninstall -y -q -r requirements/requirements-isles22.txt
 ${PIP} uninstall -y atommic
 

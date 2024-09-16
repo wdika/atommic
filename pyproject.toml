@@ -52,6 +52,7 @@ markers = [
     "skipduringci: marks tests that are skipped ci as they are addressed by Jenkins jobs but should be run to test user setups",
     "pleasefixme: marks tests that are broken and need fixing",
     "run_only_on: marks tests that should only be run on a specific platform",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 [tool.tox]

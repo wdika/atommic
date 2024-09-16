@@ -24,7 +24,7 @@ from atommic.collections.common.parts.utils import coil_combination_method as co
 from atommic.collections.common.parts.utils import is_none, to_tensor
 from atommic.collections.motioncorrection.parts.motionsimulation import MotionSimulation
 
-__all__ = ["RSMRIDataTransforms"]
+__all__ = ["RSMRIDataTransforms", "RSCTDataTransforms"]
 
 
 class RSMRIDataTransforms:
@@ -1262,3 +1262,300 @@ class RSMRIDataTransforms:
                 normalization_vars["target_var"] = target_vars["var"]
 
         return normalization_vars
+
+
+class RSCTDataTransforms:
+    """Data transforms for CT reconstruction and CT segmentation.
+
+    Returns
+    -------
+    RSCTDataTransforms
+        Preprocessed data for CT reconstruction and CT segmentation.
+    """
+
+    def __init__(
+        self,
+        complex_data: bool = True,
+        dataset_format: str = None,
+        apply_prewhitening: bool = False,
+        find_patch_size: bool = True,
+        prewhitening_scale_factor: float = 1.0,
+        prewhitening_patch_start: int = 10,
+        prewhitening_patch_length: int = 30,
+        apply_gcc: bool = False,
+        gcc_virtual_coils: int = 10,
+        gcc_calib_lines: int = 24,
+        gcc_align_data: bool = True,
+        apply_random_motion: bool = False,
+        random_motion_type: str = "gaussian",
+        random_motion_percentage: Sequence[int] = (10, 10),
+        random_motion_angle: int = 10,
+        random_motion_translation: int = 10,
+        random_motion_center_percentage: float = 0.02,
+        random_motion_num_segments: int = 8,
+        random_motion_random_num_segments: bool = True,
+        random_motion_non_uniform: bool = False,
+        estimate_coil_sensitivity_maps: bool = False,
+        coil_sensitivity_maps_type: str = "ESPIRiT",
+        coil_sensitivity_maps_gaussian_sigma: float = 0.0,
+        coil_sensitivity_maps_espirit_threshold: float = 0.05,
+        coil_sensitivity_maps_espirit_kernel_size: int = 6,
+        coil_sensitivity_maps_espirit_crop: float = 0.95,
+        coil_sensitivity_maps_espirit_max_iters: int = 30,
+        coil_combination_method: str = "SENSE",
+        dimensionality: int = 2,
+        mask_func: Optional[List] = None,
+        shift_mask: bool = False,
+        mask_center_scale: Optional[float] = 0.02,
+        partial_fourier_percentage: float = 0.0,
+        remask: bool = False,
+        ssdu: bool = False,
+        ssdu_mask_type: str = "Gaussian",
+        ssdu_rho: float = 0.4,
+        ssdu_acs_block_size: Sequence[int] = (4, 4),
+        ssdu_gaussian_std_scaling_factor: float = 4.0,
+        ssdu_outer_kspace_fraction: float = 0.0,
+        ssdu_export_and_reuse_masks: bool = False,
+        n2r: bool = False,
+        n2r_supervised_rate: float = 0.0,
+        n2r_probability: float = 0.0,
+        n2r_std_devs: Tuple[float, float] = None,
+        n2r_rhos: Tuple[float, float] = None,
+        n2r_use_mask: bool = False,
+        unsupervised_masked_target: bool = False,
+        crop_size: Optional[Tuple[int, int]] = None,
+        kspace_crop: bool = False,
+        crop_before_masking: bool = True,
+        kspace_zero_filling_size: Optional[Tuple] = None,
+        normalize_inputs: bool = True,
+        normalization_type: str = "max",
+        kspace_normalization: bool = False,
+        fft_centered: bool = False,
+        fft_normalization: str = "backward",
+        spatial_dims: Sequence[int] = None,
+        coil_dim: int = 0,
+        consecutive_slices: int = 1,  # pylint: disable=unused-argument
+        use_seed: bool = True,
+    ):
+        """Inits :class:`RSCTDataTransforms`.
+
+        Parameters
+        ----------
+        complex_data : bool, optional
+            Placeholder at the moment.
+        dataset_format : str, optional
+            The format of the dataset. For example, ``'custom_dataset'`` or ``'public_dataset_name'``.
+            Default is ``None``.
+        apply_prewhitening : bool, optional
+            Placeholder at the moment.
+        find_patch_size : bool, optional
+            Placeholder at the moment.
+        prewhitening_scale_factor : float, optional
+            Placeholder at the moment.
+        prewhitening_patch_start : int, optional
+            Placeholder at the moment.
+        prewhitening_patch_length : int, optional
+            Placeholder at the moment.
+        apply_gcc : bool, optional
+            Placeholder at the moment.
+        gcc_virtual_coils : int, optional
+            Placeholder at the moment.
+        gcc_calib_lines : int, optional
+            Placeholder at the moment.
+        gcc_align_data : bool, optional
+            Placeholder at the moment.
+        apply_random_motion : bool, optional
+            Placeholder at the moment.
+        random_motion_type : str, optional
+            Placeholder at the moment.
+        random_motion_percentage : Sequence[int], optional
+            Placeholder at the moment.
+        random_motion_angle : float, optional
+            Placeholder at the moment.
+        random_motion_translation : float, optional
+            Placeholder at the moment.
+        random_motion_center_percentage : float, optional
+            Placeholder at the moment.
+        random_motion_num_segments : int, optional
+            Placeholder at the moment.
+        random_motion_random_num_segments : bool, optional
+            Placeholder at the moment.
+        random_motion_non_uniform : bool, optional
+            Placeholder at the moment.
+        estimate_coil_sensitivity_maps : bool, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_type : str, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_gaussian_sigma : float, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_espirit_threshold : float, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_espirit_kernel_size : int, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_espirit_crop : float, optional
+            Placeholder at the moment.
+        coil_sensitivity_maps_espirit_max_iters : int, optional
+            Placeholder at the moment.
+        coil_combination_method : str, optional
+            Placeholder at the moment.
+        dimensionality : int, optional
+            Dimensionality. Default is ``2``.
+        mask_func : Optional[List["MaskFunc"]], optional
+            Placeholder at the moment.
+        shift_mask : bool, optional
+            Placeholder at the moment.
+        mask_center_scale : Optional[float], optional
+            Placeholder at the moment..
+        partial_fourier_percentage : float, optional
+            Placeholder at the moment.
+        remask : bool, optional
+            Placeholder at the moment.
+        ssdu : bool, optional
+            Placeholder at the moment.
+        ssdu_mask_type: str, optional
+            Placeholder at the moment.
+        ssdu_rho: float, optional
+            Placeholder at the moment.
+        ssdu_acs_block_size: tuple, optional
+            Placeholder at the moment.
+        ssdu_gaussian_std_scaling_factor: float, optional
+            Placeholder at the moment.
+        ssdu_outer_kspace_fraction: float, optional
+            Placeholder at the moment.
+        ssdu_export_and_reuse_masks: bool, optional
+            Placeholder at the moment.
+        n2r : bool, optional
+            Placeholder at the moment.
+        n2r_supervised_rate : Optional[float], optional
+            Placeholder at the moment.
+        n2r_probability : float, optional
+            Placeholder at the moment.
+        n2r_std_devs : Tuple[float, float], optional
+            Placeholder at the moment.
+        n2r_rhos : Tuple[float, float], optional
+            Placeholder at the moment.
+        n2r_use_mask : bool, optional
+            Placeholder at the moment.
+        unsupervised_masked_target : bool, optional
+            Placeholder at the moment.
+        crop_size : Optional[Tuple[int, int]], optional
+            Placeholder at the moment.
+        kspace_crop : bool, optional
+            Placeholder at the moment.
+        crop_before_masking : bool, optional
+            Placeholder at the moment.
+        kspace_zero_filling_size : Optional[Tuple], optional
+            Placeholder at the moment.
+        normalize_inputs : bool, optional
+            Whether to normalize the inputs. Default is ``True``.
+        normalization_type : str, optional
+            Normalization type. Can be ``max`` or ``mean`` or ``minmax``. Default is ``max``.
+        kspace_normalization : bool, optional
+            Placeholder at the moment.
+        fft_centered : bool, optional
+            Placeholder at the moment.
+        fft_normalization : str, optional
+            Placeholder at the moment.
+        spatial_dims : Sequence[int], optional
+            Placeholder at the moment.
+        coil_dim : int, optional
+            Placeholder at the moment.
+        consecutive_slices : int, optional
+            Consecutive slices. Default is ``1``.
+        use_seed : bool, optional
+            Whether to use seed. Default is ``True``.
+        """
+        self.dataset_format = dataset_format
+
+        self.normalization_type = normalization_type
+        self.normalization = (
+            Normalizer(
+                normalization_type=self.normalization_type,
+                kspace_normalization=False,
+            )
+            if normalize_inputs
+            else None
+        )
+        self.normalization = Composer([self.normalization])  # type: ignore
+
+        self.use_seed = use_seed
+
+    def __call__(
+        self,
+        image: np.ndarray,
+        segmentation_labels: np.ndarray,
+        attrs: Dict,
+        fname: str,
+        slice_idx: int,
+    ) -> Tuple[
+        torch.tensor,
+        torch.tensor,
+        torch.Tensor,
+        torch.tensor,
+        torch.tensor,
+        torch.tensor,
+        torch.tensor,
+        str,
+        int,
+        torch.tensor,
+        Dict,
+    ]:
+        """Calls :class:`RSCTDataTransforms`.
+
+        Parameters
+        ----------
+        image : np.ndarray
+            The image.
+        segmentation_labels : np.ndarray
+            The segmentation labels.
+        attrs : Dict
+            The attributes, if stored in the data.
+        fname : str
+            The file name.
+        slice_idx : int
+            The slice index.
+        """
+        image = torch.from_numpy(image)  # type: ignore
+        segmentation_labels = torch.from_numpy(segmentation_labels)  # type: ignore
+
+        # if segmentation_labels is Bool type, convert to float
+        if segmentation_labels.dtype == torch.bool:
+            segmentation_labels = segmentation_labels.float()
+        segmentation_labels = torch.abs(segmentation_labels)
+
+        attrs.update(
+            {  # type: ignore
+                "min": torch.min(image),
+                "max": torch.max(image),
+                "mean": torch.mean(image),
+                "std": torch.std(image),
+                "var": torch.var(image),
+            }
+        )
+        attrs["fname"] = fname
+        attrs["slice_idx"] = slice_idx
+
+        return (
+            torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
+            torch.tensor([]),
+            image,
+            image,
+            segmentation_labels,
+            fname,
+            slice_idx,
+            torch.tensor([]),
+            attrs,
+        )
+
+    def __repr__(self) -> str:
+        """Representation of :class:`RSCTDataTransforms`."""
+        return (
+            f"Preprocessing transforms initialized for {self.__class__.__name__}: "
+            f"normalization = {self.normalization}, "
+        )
+
+    def __str__(self) -> str:
+        """String representation of :class:`RSCTDataTransforms`."""
+        return self.__repr__()

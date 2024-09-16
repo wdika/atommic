@@ -1,4 +1,4 @@
 # coding=utf-8
 __author__ = "Dimitris Karkalousos"
 
-from atommic.collections.multitask.rs.parts.transforms import RSMRIDataTransforms  # noqa: F401
+from atommic.collections.multitask.rs.parts.transforms import RSCTDataTransforms, RSMRIDataTransforms  # noqa: F401

@@ -1,0 +1,2 @@
+dicom2nifti==2.4.11
+pydicom==2.4.4

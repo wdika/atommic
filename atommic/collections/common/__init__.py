@@ -11,4 +11,4 @@ __version = __version__
 __author__ = "Dimitris Karkalousos"
 
 # Set collection name.
-__description__ = "Common MRI collection"
+__description__ = "Common MRI & CT collection"
