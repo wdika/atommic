@@ -1,24 +1,14 @@
 # coding=utf-8
 __author__ = "Dimitris Karkalousos"
 
-import json
-import logging
 import os
-import random
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
-import h5py
-import nibabel as nib
 import numpy as np
 import SimpleITK as sitk
-import yaml  # type: ignore
-from nibabel.filebasedimages import FileBasedImage
-from sympy.physics.control.control_plots import matplotlib
-from torch.utils.data import Dataset
 
 from atommic.collections.common.data.ct_loader import CTDataset
-from atommic.collections.common.parts.utils import is_none
 
 
 class SegmentationCTDataset(CTDataset):
@@ -98,8 +88,7 @@ class SegmentationCTDataset(CTDataset):
             The number of segmentation classes. Default is ``2``.
         segmentation_classes_to_remove : Optional[Tuple[int]], optional
             A tuple of segmentation classes to remove. For example, if the dataset contains segmentation classes
-            0, 1, 2,
-            3, and 4, and you want to remove classes 1 and 3, set this to ``(1, 3)``. Default is ``None``.
+            0, 1, 2, 3, and 4, and you want to remove classes 1 and 3, set this to ``(1, 3)``. Default is ``None``.
         segmentation_classes_to_combine : Optional[Tuple[int]], optional
             A tuple of segmentation classes to combine. For example, if the dataset contains segmentation classes
             0, 1, 2, 3, and 4, and you want to combine classes 1 and 3, set this to ``(1, 3)``. Default is ``None``.
@@ -171,22 +160,44 @@ class SegmentationCTDataset(CTDataset):
 
         # check if we need to combine any classes, e.g. White Matter and Gray Matter
         if self.segmentation_classes_to_combine is not None:
-            segmentation_labels_to_combine = np.sum(
-                segmentation_labels[..., self.segmentation_classes_to_combine], axis=-1, keepdims=True
-            )
-            segmentation_labels_to_keep = np.delete(segmentation_labels, self.segmentation_classes_to_combine, axis=-1)
+            if isinstance(self.segmentation_classes_to_combine[0], int):
+                segmentation_labels_to_combine = np.stack(
+                    [segmentation_labels[..., x] for x in self.segmentation_classes_to_combine], axis=-1
+                ).sum(axis=-1, keepdims=True)
+                segmentation_labels_to_keep = np.delete(
+                    segmentation_labels, self.segmentation_classes_to_combine, axis=-1
+                )
+            else:
+                # In case we want to combine more classes separately
+                segmentation_labels_to_combine = []
+                for classes in self.segmentation_classes_to_combine:
+                    segmentation_labels_to_combine.append(
+                        np.stack([segmentation_labels[..., x] for x in classes], axis=-1).sum(axis=-1, keepdims=True)
+                    )
+                segmentation_labels_to_combine = np.concatenate(segmentation_labels_to_combine, axis=-1)
+                segmentation_labels_to_keep = np.delete(
+                    segmentation_labels,
+                    [x for classes in self.segmentation_classes_to_combine for x in classes],
+                    axis=-1,
+                )
 
             if self.segmentation_classes_to_remove is not None and 0 in self.segmentation_classes_to_remove:
                 # if background is removed, we can stack the combined labels with the rest straight away
                 segmentation_labels = np.concatenate(
                     [segmentation_labels_to_combine, segmentation_labels_to_keep], axis=-1
                 )
-            else:
+            elif segmentation_labels[..., 0].sum() == 0:
                 # if background is not removed, we need to add it back as new background channel
                 segmentation_labels = np.concatenate(
                     [segmentation_labels[..., 0:1], segmentation_labels_to_combine, segmentation_labels_to_keep],
                     axis=-1,
                 )
+            else:
+                segmentation_labels = np.concatenate(
+                    [segmentation_labels_to_combine, segmentation_labels_to_keep], axis=-1
+                )
+
+            segmentation_labels = segmentation_labels.astype(np.int8)
 
         # check if we need to separate any classes, e.g. pathologies
         if self.segmentation_classes_to_separate is not None:
@@ -230,7 +241,7 @@ class SegmentationCTDataset(CTDataset):
         else:
             raise ValueError("Please provide the 'segmentations_path' to load the segmentation labels.")
 
-        attrs = dict()
+        attrs = {}
         attrs.update(metadata)
         attrs["log_image"] = bool(dataslice in self.indices_to_log)
 

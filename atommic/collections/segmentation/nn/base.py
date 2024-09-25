@@ -11,7 +11,6 @@ from typing import Dict, Tuple, Union
 import h5py
 import numpy as np
 import torch
-from numpy.lib.tests.test_format import dtype
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
@@ -921,6 +920,11 @@ class BaseMRISegmentationModel(BaseMRIModel, ABC):
                 n2r_rhos=cfg.get("n2r_rhos", (0.4, 0.4)),
                 n2r_use_mask=cfg.get("n2r_use_mask", True),
                 unsupervised_masked_target=cfg.get("unsupervised_masked_target", False),
+                random_flip=cfg.get("random_flip", False),
+                random_flip_axes=cfg.get("random_flip_axes", (0, 1)),
+                random_flip_probability=cfg.get("random_flip_probability", 0.5),
+                random_flip_apply_ifft=cfg.get("random_flip_apply_ifft", False),
+                kspace_flip=cfg.get("kspace_flip", False),
                 crop_size=cfg.get("crop_size", None),
                 kspace_crop=cfg.get("kspace_crop", False),
                 crop_before_masking=cfg.get("crop_before_masking", False),
@@ -1304,7 +1308,7 @@ class BaseCTSegmentationModel(BaseCTModel, ABC):
                 self.log_image(f"{key}/c/segmentation_predictions", output_predictions_segmentation_classes)
                 self.log_image(
                     f"{key}/d/segmentation_error",
-                    torch.abs(target_segmentation_classes - output_predictions_segmentation_classes),
+                    torch.abs(target_segmentation_classes) - torch.abs(output_predictions_segmentation_classes),
                 )
 
             output_target_segmentation = output_target_segmentation.unsqueeze(0)
@@ -1830,6 +1834,11 @@ class BaseCTSegmentationModel(BaseCTModel, ABC):
                 n2r_rhos=cfg.get("n2r_rhos", (0.4, 0.4)),
                 n2r_use_mask=cfg.get("n2r_use_mask", True),
                 unsupervised_masked_target=cfg.get("unsupervised_masked_target", False),
+                random_flip=cfg.get("random_flip", False),
+                random_flip_axes=cfg.get("random_flip_axes", 0),
+                random_flip_probability=cfg.get("random_flip_probability", 0.5),
+                random_flip_apply_ifft=cfg.get("random_flip_apply_ifft", False),
+                kspace_flip=cfg.get("kspace_flip", False),
                 crop_size=cfg.get("crop_size", None),
                 kspace_crop=cfg.get("kspace_crop", False),
                 crop_before_masking=cfg.get("crop_before_masking", False),

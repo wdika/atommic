@@ -183,7 +183,7 @@ class Segmentation3DUNet:
     """
 
     @staticmethod
-    def get_model(cfg: DictConfig, trainer: Trainer = None):
+    def get_model(cfg: DictConfig, trainer: Trainer = None):  # pylint: disable=unused-argument
         """Get the segmentation network.
 
         Parameters
@@ -201,7 +201,6 @@ class Segmentation3DUNet:
         modality = cfg.get("modality", "MRI").lower()
         if modality == "mri":
             return MRISegmentation3DUNet(cfg)
-        elif modality == "ct":
+        if modality == "ct":
             return CTSegmentation3DUNet(cfg)
-        else:
-            raise ValueError(f"Unknown modality: {modality}")
+        raise ValueError(f"Unknown modality: {modality}")

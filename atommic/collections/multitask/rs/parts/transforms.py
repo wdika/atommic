@@ -17,6 +17,7 @@ from atommic.collections.common.parts.transforms import (
     Masker,
     NoisePreWhitening,
     Normalizer,
+    RandomFlipper,
     ZeroFillingPadding,
 )
 from atommic.collections.common.parts.utils import add_coil_dim_if_singlecoil
@@ -86,6 +87,11 @@ class RSMRIDataTransforms:
         n2r_rhos: Tuple[float, float] = None,
         n2r_use_mask: bool = False,
         unsupervised_masked_target: bool = False,
+        random_flip: bool = False,
+        random_flip_axes: Optional[Union[int, Tuple[int, ...]]] = 0,
+        random_flip_probability: float = 0.5,
+        random_flip_apply_ifft: bool = False,
+        kspace_flip: bool = False,
         crop_size: Optional[Tuple[int, int]] = None,
         kspace_crop: bool = False,
         crop_before_masking: bool = True,
@@ -220,6 +226,16 @@ class RSMRIDataTransforms:
             Whether to use a mask for N2R. Default is ``False``.
         unsupervised_masked_target : bool, optional
             Whether to use the masked initial estimation for unsupervised learning. Default is ``False``.
+        random_flip : bool, optional
+            Whether to apply random flipping. Default is ``False``.
+        random_flip_axes : Optional[Union[int, Tuple[int, ...]]], optional
+            The axes to apply random flipping. Default is ``0``.
+        random_flip_probability : float, optional
+            The probability of applying random flipping. Default is ``0.5``.
+        random_flip_apply_ifft : bool, optional
+            Whether to apply IFFT before flipping. Default is ``False``.
+        kspace_flip : bool, optional
+            Whether to apply flipping in k-space. Default is ``False``.
         crop_size : Optional[Tuple[int, int]], optional
             Center crop size. It applies cropping in image space. Default is ``None``.
         kspace_crop : bool, optional
@@ -405,6 +421,21 @@ class RSMRIDataTransforms:
                 ]
             )
             self.random_motion = Composer([self.random_motion])  # type: ignore
+
+        self.flipping = (
+            RandomFlipper(
+                axes=random_flip_axes,
+                flip_probability=random_flip_probability,
+                apply_ifft=random_flip_apply_ifft,
+                fft_centered=self.fft_centered,
+                fft_normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+            if random_flip
+            else None
+        )
+        self.kspace_flip = kspace_flip
+        self.flipping = Composer([self.flipping])  # type: ignore
 
         self.cropping = (
             Cropper(
@@ -646,6 +677,8 @@ class RSMRIDataTransforms:
 
         if self.crop_before_masking:
             kspace = self.cropping(kspace, apply_backward_transform=not self.kspace_crop)  # type: ignore
+
+        kspace = self.flipping(kspace, apply_backward_transform=not self.kspace_flip)  # type: ignore
 
         masked_kspace, mask, acc = self.masking(
             self.random_motion(kspace),  # type: ignore
@@ -1013,6 +1046,8 @@ class RSMRIDataTransforms:
             # Initialize the sensitivity map to 1 to assure for the singlecoil case.
             sensitivity_map = torch.ones_like(kspace) if not isinstance(kspace, list) else torch.ones_like(kspace[0])
 
+        sensitivity_map = self.flipping(sensitivity_map, apply_forward_transform=self.kspace_flip)  # type: ignore
+
         if not is_none(self.normalization.__repr__()):
             sensitivity_map, pre_normalization_vars = self.normalization(  # type: ignore
                 sensitivity_map, apply_forward_transform=self.kspace_crop
@@ -1110,6 +1145,7 @@ class RSMRIDataTransforms:
             if isinstance(prediction, np.ndarray):
                 prediction = to_tensor(prediction)
             prediction = self.cropping(prediction, apply_forward_transform=self.kspace_crop)  # type: ignore
+            prediction = self.flipping(prediction, apply_forward_transform=self.kspace_flip)  # type: ignore
             if not is_none(self.normalization.__repr__()):
                 prediction, pre_normalization_vars = self.normalization(  # type: ignore
                     prediction, apply_forward_transform=self.kspace_crop
@@ -1323,6 +1359,11 @@ class RSCTDataTransforms:
         n2r_rhos: Tuple[float, float] = None,
         n2r_use_mask: bool = False,
         unsupervised_masked_target: bool = False,
+        random_flip: bool = False,
+        random_flip_axes: Optional[Union[int, Tuple[int, ...]]] = 0,
+        random_flip_probability: float = 0.5,
+        random_flip_apply_ifft: bool = False,
+        kspace_flip: bool = False,
         crop_size: Optional[Tuple[int, int]] = None,
         kspace_crop: bool = False,
         crop_before_masking: bool = True,
@@ -1438,6 +1479,16 @@ class RSCTDataTransforms:
             Placeholder at the moment.
         unsupervised_masked_target : bool, optional
             Placeholder at the moment.
+        random_flip : bool, optional
+            Whether to apply random flipping. Default is ``False``.
+        random_flip_axes : Optional[Union[int, Tuple[int, ...]]], optional
+            The axes to apply random flipping. Default is ``0``.
+        random_flip_probability : float, optional
+            The probability of applying random flipping. Default is ``0.5``.
+        random_flip_apply_ifft : bool, optional
+            Whether to apply IFFT before flipping. Default is ``False``.
+        kspace_flip : bool, optional
+            Whether to apply flipping in k-space. Default is ``False``.
         crop_size : Optional[Tuple[int, int]], optional
             Placeholder at the moment.
         kspace_crop : bool, optional
@@ -1466,6 +1517,25 @@ class RSCTDataTransforms:
             Whether to use seed. Default is ``True``.
         """
         self.dataset_format = dataset_format
+
+        self.fft_centered = fft_centered
+        self.fft_normalization = fft_normalization
+        self.spatial_dims = spatial_dims if spatial_dims is not None else [-2, -1]
+
+        self.flipping = (
+            RandomFlipper(
+                axes=random_flip_axes,
+                flip_probability=random_flip_probability,
+                apply_ifft=random_flip_apply_ifft,
+                fft_centered=self.fft_centered,
+                fft_normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+            if random_flip
+            else None
+        )
+        self.kspace_flip = kspace_flip
+        self.flipping = Composer([self.flipping])  # type: ignore
 
         self.normalization_type = normalization_type
         self.normalization = (
@@ -1522,6 +1592,10 @@ class RSCTDataTransforms:
         if segmentation_labels.dtype == torch.bool:
             segmentation_labels = segmentation_labels.float()
         segmentation_labels = torch.abs(segmentation_labels)
+
+        # Apply random flipping
+        image = self.flipping(image, apply_forward_transform=self.kspace_flip)  # type: ignore
+        segmentation_labels = self.flipping(segmentation_labels)  # type: ignore
 
         attrs.update(
             {  # type: ignore

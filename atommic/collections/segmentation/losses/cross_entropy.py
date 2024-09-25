@@ -66,7 +66,7 @@ class CrossEntropyLoss(nn.Module):
         self.cross_entropy.weight = self.cross_entropy.weight.clone().to(_input.device)
 
         if self.mc_samples == 1 or pred_log_var is None:
-            return self.cross_entropy(_input.float(), target).mean()
+            return self.cross_entropy(_input.float(), target.float()).mean()
 
         pred_shape = [self.mc_samples, *_input.shape]
         noise = torch.randn(pred_shape, device=_input.device)

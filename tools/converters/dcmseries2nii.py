@@ -28,15 +28,21 @@ def main(args):
         # Get the nifti file, rename it to the subject name and move it to the outdir
         nifti_file = list(outdir.glob('*.nii.gz'))[0]
         outname = Path(args.outdir) / f'{subject.name}.nii.gz'
-        nifti_file.rename(outname)
 
-        if args.flip_ud:
-            # flip up-down
-            sitk.WriteImage(sitk.Flip(nifti_file, [False, True, False]), str(outname))
-
-        if args.flip_lr:
-            # flip left-right
-            sitk.WriteImage(sitk.Flip(nifti_file, [True, False, False]), str(outname))
+        if args.flip_ud or args.flip_lr:
+            # Read the NIFTI file
+            image = sitk.ReadImage(str(nifti_file))
+            if args.flip_ud:
+                # Flip the image up-down (along Y-axis)
+                image = sitk.Flip(image, [False, True, False])
+            if args.flip_lr:
+                # Flip the image left-right (along X-axis)
+                image = sitk.Flip(image, [True, False, False])
+            # Write the flipped image directly to the output filename
+            sitk.WriteImage(image, str(outname))
+        else:
+            # If no flipping is needed, simply rename the file
+            nifti_file.rename(outname)
 
         # Remove the outdir
         for f in outdir.iterdir():

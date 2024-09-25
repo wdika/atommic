@@ -13,6 +13,7 @@ from atommic.collections.common.parts.transforms import (  # noqa: F401
     MRIDataTransforms,
     NoisePreWhitening,
     Normalizer,
+    RandomFlipper,
     SNREstimator,
     ZeroFillingPadding,
 )

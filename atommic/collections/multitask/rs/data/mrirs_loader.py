@@ -197,22 +197,44 @@ class RSMRIDataset(MRIDataset):
 
         # check if we need to combine any classes, e.g. White Matter and Gray Matter
         if self.segmentation_classes_to_combine is not None:
-            segmentation_labels_to_combine = np.sum(
-                segmentation_labels[..., self.segmentation_classes_to_combine], axis=-1, keepdims=True
-            )
-            segmentation_labels_to_keep = np.delete(segmentation_labels, self.segmentation_classes_to_combine, axis=-1)
+            if isinstance(self.segmentation_classes_to_combine[0], int):
+                segmentation_labels_to_combine = np.stack(
+                    [segmentation_labels[..., x] for x in self.segmentation_classes_to_combine], axis=-1
+                ).sum(axis=-1, keepdims=True)
+                segmentation_labels_to_keep = np.delete(
+                    segmentation_labels, self.segmentation_classes_to_combine, axis=-1
+                )
+            else:
+                # In case we want to combine more classes separately
+                segmentation_labels_to_combine = []
+                for classes in self.segmentation_classes_to_combine:
+                    segmentation_labels_to_combine.append(
+                        np.stack([segmentation_labels[..., x] for x in classes], axis=-1).sum(axis=-1, keepdims=True)
+                    )
+                segmentation_labels_to_combine = np.concatenate(segmentation_labels_to_combine, axis=-1)
+                segmentation_labels_to_keep = np.delete(
+                    segmentation_labels,
+                    [x for classes in self.segmentation_classes_to_combine for x in classes],
+                    axis=-1,
+                )
 
             if self.segmentation_classes_to_remove is not None and 0 in self.segmentation_classes_to_remove:
                 # if background is removed, we can stack the combined labels with the rest straight away
                 segmentation_labels = np.concatenate(
                     [segmentation_labels_to_combine, segmentation_labels_to_keep], axis=-1
                 )
-            else:
+            elif segmentation_labels[..., 0].sum() == 0:
                 # if background is not removed, we need to add it back as new background channel
                 segmentation_labels = np.concatenate(
                     [segmentation_labels[..., 0:1], segmentation_labels_to_combine, segmentation_labels_to_keep],
                     axis=-1,
                 )
+            else:
+                segmentation_labels = np.concatenate(
+                    [segmentation_labels_to_combine, segmentation_labels_to_keep], axis=-1
+                )
+
+            segmentation_labels = segmentation_labels.astype(np.int8)
 
         # check if we need to separate any classes, e.g. pathologies from White Matter and Gray Matter
         if self.segmentation_classes_to_separate is not None:

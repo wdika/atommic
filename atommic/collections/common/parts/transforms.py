@@ -27,6 +27,7 @@ __all__ = [
     "N2R",
     "NoisePreWhitening",
     "Normalizer",
+    "RandomFlipper",
     "SNREstimator",
     "SSDU",
     "ZeroFillingPadding",
@@ -1532,6 +1533,165 @@ class Normalizer:
             )
 
         return data, attrs
+
+
+class RandomFlipper:  # TODO: Implement RandomFlipper for complex MRI data
+    """Randomly flips data along the specified axes.
+
+    Returns
+    -------
+    flipped_data : torch.Tensor
+        The flipped data along the specified axes.
+
+    Example
+    --------
+    >>> import torch
+    >>> from atommic.collections.common.parts.transforms import RandomFlipper
+    >>> data = torch.randn(1, 32, 320, 320, 2)  1j * torch.randn(1, 32, 320, 320, 2)
+    >>> random_flip = RandomFlipper(spatial_dims=(-2, -1))
+    >>> flipped_data = random_flip(data)
+    """
+
+    def __init__(
+        self,
+        axes: Union[int, Tuple[int, ...], None] = 0,
+        flip_probability: float = 0.5,
+        apply_ifft: bool = False,
+        fft_centered: bool = False,
+        fft_normalization: str = "backward",
+        spatial_dims: Sequence[int] = (-2, -1),
+    ):
+        """Inits :class:`RandomFlipper`.
+
+        Parameters
+        ----------
+        axes : int or tuple of ints
+            The axes along which to flip the data. Default is ``0``.
+        flip_probability : float
+            Probability that the data will be flipped. Default is ``0.5``.
+        apply_ifft: bool
+            If data in k-space go to imspace. Default is ``False`` because we assume that the data is in k-space or
+            we are working with non-complex data, thus we are on image space. If you are working with complex data and
+            your input data are in k-space, then set this to ``True``.
+        fft_centered: bool
+            If True, apply centered FFT
+        fft_normalization : str
+            Type of FFT normalization
+        spatial_dims : tuple of ints
+            Spatial dimensions
+        """
+        super().__init__()
+        self.axes = (
+            tuple(
+                [axes],
+            )
+            if isinstance(axes, int)
+            else axes
+        )
+        self.flip_probability = (flip_probability > torch.rand(len(self.axes))).tolist()  # type: ignore
+        self.apply_ifft = apply_ifft
+        self.fft_centered = fft_centered
+        self.fft_normalization = fft_normalization
+        self.spatial_dims = spatial_dims
+
+    def __call__(
+        self,
+        data: torch.Tensor,
+        apply_backward_transform: bool = False,
+        apply_forward_transform: bool = False,
+    ) -> torch.Tensor:
+        """Calls :class:`RandomFlipper`.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Input data to apply random flip.
+        apply_backward_transform : bool
+            Apply backward transform. Default is ``False``.
+        apply_forward_transform : bool
+            Apply forward transform. Default is ``False``.
+        """
+        return self.forward(data, apply_backward_transform, apply_forward_transform)
+
+    def __repr__(self):
+        """Representation of :class:`RandomFlipper`."""
+        return f"Randomly flip data along axes {self.axes} with probability {self.flip_probability}."
+
+    def __str__(self):
+        """String representation of :class:`RandomFlipper`."""
+        return str(self.__repr__)
+
+    # pylint: disable=unused-argument
+    def forward(
+        self,
+        data: torch.Tensor,
+        apply_backward_transform: bool = False,
+        apply_forward_transform: bool = False,
+    ) -> torch.Tensor:
+        """Forward pass of :class:`RandomFlipper`.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Input data to apply random flip.
+        apply_backward_transform : bool
+            Apply backward transform before noise pre-whitening.
+        apply_forward_transform : bool
+            Apply forward transform before noise pre-whitening.
+
+        Returns
+        -------
+        torch.Tensor
+            Flipped data.
+        """
+        if apply_backward_transform:
+            data = ifft2(
+                data,
+                centered=self.fft_centered,
+                normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+        elif apply_forward_transform:
+            data = fft2(
+                data,
+                centered=self.fft_centered,
+                normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+
+        is_complex = data.shape[-1] == 2 and self.apply_ifft
+
+        if is_complex:
+            data = torch.view_as_complex(data)
+
+        axes_to_flip = self.flip_probability
+        axes_to_iterate = range(data.dim() - 1) if data.dim() == 3 else range(data.dim())
+        if len(axes_to_flip) != len(axes_to_iterate):
+            axes_to_flip = [axes_to_flip[0] if i in self.axes else False for i in axes_to_iterate]  # type: ignore
+        (axes,) = np.where(axes_to_flip)
+        axes = axes.tolist()
+        if axes:
+            data = torch.flip(data, dims=axes)
+
+        if is_complex:
+            data = torch.view_as_real(data)
+
+        if apply_backward_transform:
+            data = fft2(
+                data,
+                centered=self.fft_centered,
+                normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+        elif apply_forward_transform:
+            data = ifft2(
+                data,
+                centered=self.fft_centered,
+                normalization=self.fft_normalization,
+                spatial_dims=self.spatial_dims,
+            )
+
+        return data.detach().clone()
 
 
 class SNREstimator:

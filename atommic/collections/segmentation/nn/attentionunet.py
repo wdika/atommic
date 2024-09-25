@@ -88,7 +88,7 @@ class SegmentationAttentionUNet:
     """
 
     @staticmethod
-    def get_model(cfg: DictConfig, trainer: Trainer = None):
+    def get_model(cfg: DictConfig, trainer: Trainer = None):  # pylint: disable=unused-argument
         """Get the segmentation network.
 
         Parameters
@@ -106,7 +106,6 @@ class SegmentationAttentionUNet:
         modality = cfg.get("modality", "MRI").lower()
         if modality == "mri":
             return MRISegmentationAttentionUNet(cfg)
-        elif modality == "ct":
+        if modality == "ct":
             return CTSegmentationAttentionUNet(cfg)
-        else:
-            raise ValueError(f"Unknown modality: {modality}")
+        raise ValueError(f"Unknown modality: {modality}")

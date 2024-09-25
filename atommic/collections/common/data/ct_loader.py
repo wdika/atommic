@@ -111,7 +111,7 @@ class CTDataset(Dataset):
         # Check if our dataset is in the cache. If yes, use that metadata, if not, then regenerate the metadata.
         if dataset_cache.get(root) is None or not use_dataset_cache:
             if str(root).endswith(".json"):
-                with open(root, "rb") as f:  # pylint: disable=unspecified-encoding
+                with open(root, "rb") as f:
                     examples = json.load(f)
                 files = [Path(example) for example in examples]
             else:

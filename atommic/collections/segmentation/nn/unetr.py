@@ -214,7 +214,7 @@ class SegmentationUNetR:
     """
 
     @staticmethod
-    def get_model(cfg: DictConfig, trainer: Trainer = None):
+    def get_model(cfg: DictConfig, trainer: Trainer = None):  # pylint: disable=unused-argument
         """Get the segmentation network.
 
         Parameters
@@ -232,7 +232,6 @@ class SegmentationUNetR:
         modality = cfg.get("modality", "MRI").lower()
         if modality == "mri":
             return MRISegmentationUNetR(cfg)
-        elif modality == "ct":
+        if modality == "ct":
             return CTSegmentationUNetR(cfg)
-        else:
-            raise ValueError(f"Unknown modality: {modality}")
+        raise ValueError(f"Unknown modality: {modality}")
