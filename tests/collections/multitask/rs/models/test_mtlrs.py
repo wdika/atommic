@@ -222,8 +222,157 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "max_steps": -1,
             },
         ),
+        (
+            [1, 3, 32, 16, 2],
+            {
+                "use_reconstruction_module": True,
+                "task_adaption_type": "multi_task_learning_softmax",
+                "joint_reconstruction_segmentation_module_cascades": 5,
+                "reconstruction_module_recurrent_layer": "IndRNN",
+                "reconstruction_module_conv_filters": [64, 64, 2],
+                "reconstruction_module_conv_kernels": [5, 3, 3],
+                "reconstruction_module_conv_dilations": [1, 2, 1],
+                "reconstruction_module_conv_bias": [True, True, False],
+                "reconstruction_module_recurrent_filters": [64, 64, 0],
+                "reconstruction_module_recurrent_kernels": [1, 1, 0],
+                "reconstruction_module_recurrent_dilations": [1, 1, 0],
+                "reconstruction_module_recurrent_bias": [True, True, False],
+                "reconstruction_module_depth": 2,
+                "reconstruction_module_conv_dim": 2,
+                "reconstruction_module_time_steps": 8,
+                "reconstruction_module_num_cascades": 1,
+                "reconstruction_module_dimensionality": 2,
+                "reconstruction_module_accumulate_predictions": True,
+                "reconstruction_module_no_dc": True,
+                "reconstruction_module_keep_prediction": True,
+                "reconstruction_loss": {"l1": 1.0},
+                "segmentation_module": "ConvLayer",
+                "segmentation_module_input_channels": 1,
+                "segmentation_module_output_channels": 4,
+                "segmentation_module_channels": 64,
+                "segmentation_module_pooling_layers": 4,
+                "segmentation_module_dropout": 0.0,
+                "segmentation_loss": {"dice": 1.0},
+                "reconstruction_module_accumulate_predictions": True,
+                "attention_module": "SemanticGuidanceModule",
+                "attention_module_kernel_size": 3,
+                "attention_module_padding": 1,
+                "attention_module_remove_background": True,
+                "dice_loss_include_background": False,
+                "dice_loss_to_onehot_y": False,
+                "dice_loss_sigmoid": True,
+                "dice_loss_softmax": False,
+                "dice_loss_other_act": None,
+                "dice_loss_squared_pred": False,
+                "dice_loss_jaccard": False,
+                "dice_loss_reduction": "mean",
+                "dice_loss_smooth_nr": 1,
+                "dice_loss_smooth_dr": 1,
+                "dice_loss_batch": True,
+                "consecutive_slices": 1,
+                "coil_combination_method": "SENSE",
+                "magnitude_input": True,
+                "use_sens_net": False,
+                "fft_centered": False,
+                "fft_normalization": "backward",
+                "spatial_dims": [-2, -1],
+                "coil_dim": 1,
+                "dimensionality": 2,
+            },
+            [0.08],
+            [4],
+            2,
+            4,
+            {
+                "strategy": "ddp",
+                "accelerator": "cpu",
+                "num_nodes": 1,
+                "max_epochs": 20,
+                "precision": 32,
+                "enable_checkpointing": False,
+                "logger": False,
+                "log_every_n_steps": 50,
+                "check_val_every_n_epoch": -1,
+                "max_steps": -1,
+            },
+        ),
+        (
+            [1, 3, 32, 16, 2],
+            {
+                "use_reconstruction_module": True,
+                "task_adaption_type": "multi_task_learning",
+                "joint_reconstruction_segmentation_module_cascades": 5,
+                "reconstruction_module_recurrent_layer": "IndRNN",
+                "reconstruction_module_conv_filters": [64, 64, 2],
+                "reconstruction_module_conv_kernels": [5, 3, 3],
+                "reconstruction_module_conv_dilations": [1, 2, 1],
+                "reconstruction_module_conv_bias": [True, True, False],
+                "reconstruction_module_recurrent_filters": [64, 64, 0],
+                "reconstruction_module_recurrent_kernels": [1, 1, 0],
+                "reconstruction_module_recurrent_dilations": [1, 1, 0],
+                "reconstruction_module_recurrent_bias": [True, True, False],
+                "reconstruction_module_depth": 2,
+                "reconstruction_module_conv_dim": 2,
+                "reconstruction_module_time_steps": 8,
+                "reconstruction_module_num_cascades": 1,
+                "reconstruction_module_dimensionality": 2,
+                "reconstruction_module_accumulate_predictions": True,
+                "reconstruction_module_no_dc": True,
+                "reconstruction_module_keep_prediction": True,
+                "reconstruction_loss": {"l1": 1.0},
+                "segmentation_module": "ConvLayer",
+                "segmentation_module_input_channels": 1,
+                "segmentation_module_output_channels": 4,
+                "segmentation_module_channels": 64,
+                "segmentation_module_pooling_layers": 4,
+                "segmentation_module_dropout": 0.0,
+                "segmentation_loss": {"dice": 1.0},
+                "reconstruction_module_accumulate_predictions": True,
+                "attention_module": "TaskAttentionModule",
+                "attention_module_kernel_size": 3,
+                "attention_module_padding": 1,
+                "attention_module_remove_background": True,
+                "dice_loss_include_background": False,
+                "dice_loss_to_onehot_y": False,
+                "dice_loss_sigmoid": True,
+                "dice_loss_softmax": False,
+                "dice_loss_other_act": None,
+                "dice_loss_squared_pred": False,
+                "dice_loss_jaccard": False,
+                "dice_loss_reduction": "mean",
+                "dice_loss_smooth_nr": 1,
+                "dice_loss_smooth_dr": 1,
+                "dice_loss_batch": True,
+                "consecutive_slices": 1,
+                "coil_combination_method": "SENSE",
+                "magnitude_input": True,
+                "use_sens_net": False,
+                "fft_centered": False,
+                "fft_normalization": "backward",
+                "spatial_dims": [-2, -1],
+                "coil_dim": 1,
+                "dimensionality": 2,
+            },
+            [0.08],
+            [4],
+            2,
+            4,
+            {
+                "strategy": "ddp",
+                "accelerator": "cpu",
+                "num_nodes": 1,
+                "max_epochs": 20,
+                "precision": 32,
+                "enable_checkpointing": False,
+                "logger": False,
+                "log_every_n_steps": 50,
+                "check_val_every_n_epoch": -1,
+                "max_steps": -1,
+            },
+        ),
     ],
 )
+
 def test_mtlmrirs(shape, cfg, center_fractions, accelerations, dimensionality, segmentation_classes, trainer):
     """
     Test MultiTask Learning for accelerated-MRI Reconstruction & Segmentation with different parameters.
@@ -281,20 +430,25 @@ def test_mtlmrirs(shape, cfg, center_fractions, accelerations, dimensionality, s
             output.sum(coil_dim),
         )
 
-    if cfg.get("accumulate_predictions"):
-        try:
-            pred_reconstruction = next(pred_reconstruction)
-        except StopIteration:
-            pass
+    if cfg.get("reconstruction_module_accumulate_predictions"):
+        if len(pred_reconstruction) !=cfg.get("joint_reconstruction_segmentation_module_cascades"):
+            raise AssertionError("Number of predictions are not equal to the number of cascades")
+        if cfg.get("reconstruction_module_keep_prediction"):
+            if len(pred_reconstruction[0]) !=cfg.get("reconstruction_module_num_cascades"):
+                raise AssertionError("Number of predictions are not equal to the number of cascades")
+        if cfg.get("reconstruction_module_keep_prediction"):
+            if len(pred_reconstruction[0][0]) !=cfg.get("reconstruction_module_time_steps"):
+                raise AssertionError("Number of predictions are not equal to the number of intermediate predictions")
+    
+    if cfg.get("segmentation_module_accumulate_predictions"):
+        if len(pred_segmentation) !=cfg.get("joint_reconstruction_segmentation_module_cascades"):
+            raise AssertionError(f"Number of segmentations are not equal to the number of cascades")
 
-    if isinstance(pred_reconstruction, list):
+    while isinstance(pred_reconstruction, list):
         pred_reconstruction = pred_reconstruction[-1]
 
-    if isinstance(pred_reconstruction, list):
-        pred_reconstruction = pred_reconstruction[-1]
-
-    if isinstance(pred_reconstruction, list):
-        pred_reconstruction = pred_reconstruction[-1]
+    while isinstance(pred_segmentation, list):
+        pred_segmentation = pred_segmentation[-1]
 
     if dimensionality == 3 or consecutive_slices > 1:
         x = x.reshape([x.shape[0] * x.shape[1], x.shape[2], x.shape[3], x.shape[4], x.shape[5]])

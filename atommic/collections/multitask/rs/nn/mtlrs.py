@@ -2,7 +2,7 @@
 __author__ = "Dimitris Karkalousos"
 
 from typing import Dict, List, Tuple, Union
-
+import warnings
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -12,6 +12,8 @@ from atommic.collections.common.parts.utils import expand_op
 from atommic.collections.multitask.rs.nn.base import BaseMRIReconstructionSegmentationModel
 from atommic.collections.multitask.rs.nn.mtlrs_base.mtlrs_block import MTLRSBlock
 from atommic.core.classes.common import typecheck
+from atommic.collections.multitask.rs.nn.mtlrs_base.task_attention_module import TaskAttentionalModule
+from atommic.collections.multitask.rs.nn.mtlrs_base.spatially_adaptive_semantic_guidance_module import SASG
 
 __all__ = ["MTLRS"]
 
@@ -108,8 +110,51 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
         )
 
         self.task_adaption_type = cfg_dict.get("task_adaption_type", "multi_task_learning")
+        self.attention_module = cfg_dict.get("attention_module", False)
+        self.attention_module_kernel_size = cfg_dict.get("attention_module_kernel_size", 3)
+        self.attention_module_padding = cfg_dict.get("attention_module_padding", 1)
+        self.attention_module_remove_background = cfg_dict.get("attention_module_remove_background", True)
+        self.attention_module_segmentation_input = (
+            self.segmentation_module_output_channels - 1
+            if self.attention_module_remove_background
+            else self.segmentation_module_output_channels
+        )
+        if self.attention_module == "SemanticGuidanceModule" and self.task_adaption_type == "multi_task_learning":
+            self.task_adaption_type = "multi_task_learning_softmax"
+            warnings.warn(
+                "Logits can not be used with Spatially Semantic Guidance attention modules."
+                " Logits will be transfomed into probabilities with softmax."
+                f"task_adaption_type: {self.task_adaption_type}"
+            )
+        if self.attention_module == "TaskAttentionModule":
+            self.attention_module_block = torch.nn.ModuleList(
+                [
+                    TaskAttentionalModule(
+                        channels_in=cfg_dict.get("reconstruction_module_conv_filters")[0],
+                        kernel_size=self.attention_module_kernel_size,
+                        padding=self.attention_module_padding,
+                    )
+                    for _ in range(
+                        self.rs_cascades - 1
+                    )  # TODO: range is set to (rs_cascades-1) since the last cascade does not need a attention modules since the output will not be used.
+                ]
+            )
+        if self.attention_module == "SemanticGuidanceModule":
+            self.attention_module_block = torch.nn.ModuleList(
+                [
+                    SASG(
+                        channels_rec=cfg_dict.get("reconstruction_module_conv_filters")[0],
+                        channels_seg=self.attention_module_segmentation_input,
+                        kernel_size=self.attention_module_kernel_size,
+                        padding=self.attention_module_padding,
+                    )
+                    for _ in range(
+                        self.rs_cascades - 1
+                    )  # TODO: range is set to (rs_cascades-1) since the last cascade does not need a attention modules since the output will not be used.
+                ]
+            )
 
-    # pylint: disable=arguments-differ
+    # pylint: disable = arguments-differ
     @typecheck()
     def forward(
         self,
@@ -146,7 +191,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
             Tuple containing the predicted reconstruction and segmentation.
         """
         pred_reconstructions = []
-        for cascade in self.rs_module:
+        for c, cascade in enumerate(self.rs_module):
             pred_reconstruction, pred_segmentation, hx = cascade(
                 y=y,
                 sensitivity_maps=sensitivity_maps,
@@ -158,8 +203,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
             )
             pred_reconstructions.append(pred_reconstruction)
             init_reconstruction_pred = pred_reconstruction[-1][-1]
-
-            if self.task_adaption_type == "multi_task_learning":
+            if self.task_adaption_type == "multi_task_learning" and c != self.rs_cascades - 1:
                 hidden_states = [
                     torch.cat(
                         [torch.abs(init_reconstruction_pred.unsqueeze(self.coil_dim) * pred_segmentation)]
@@ -173,8 +217,49 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                 if self.consecutive_slices > 1:
                     hx = [x.unsqueeze(1) for x in hx]
 
+            if self.task_adaption_type == "multi_task_learning_softmax" and c != self.rs_cascades - 1:
+                if self.consecutive_slices > 1:
+                    pred_segmentation_soft = torch.softmax(pred_segmentation, dim=2)
+                else:
+                    pred_segmentation_soft = torch.softmax(pred_segmentation, dim=1)
+                if self.attention_module == "SemanticGuidanceModule" and self.attention_module_remove_background:
+                    hidden_states = [
+                        pred_segmentation_soft[:, 1:] for _ in self.reconstruction_module_recurrent_filters
+                    ]
+                elif self.attention_module == "SemanticGuidanceModule" and not self.attention_module_remove_background:
+                    hidden_states = [pred_segmentation_soft for _ in self.reconstruction_module_recurrent_filters]
+                elif self.attention_module_remove_background:
+                    hidden_states = [
+                        torch.cat(
+                            [
+                                torch.abs(init_reconstruction_pred.unsqueeze(self.coil_dim))
+                                * torch.sum(pred_segmentation_soft[..., 1:, :, :], dim=1, keepdim=True)
+                            ]
+                            * f,
+                            dim=self.coil_dim,
+                        )
+                        for f in self.reconstruction_module_recurrent_filters
+                        if f != 0
+                    ]
+                else:
+                    hidden_states = [
+                        torch.cat(
+                            [
+                                torch.abs(init_reconstruction_pred.unsqueeze(self.coil_dim))
+                                * torch.sum(pred_segmentation_soft, dim=1, keepdim=True)
+                            ]
+                            * f,
+                            dim=self.coil_dim,
+                        )
+                        for f in self.reconstruction_module_recurrent_filters
+                        if f != 0
+                    ]
+
                 # Check if the concatenated hidden states are the same size as the hidden state of the RNN
-                if hidden_states[0].shape[self.coil_dim] != hx[0].shape[self.coil_dim]:
+                if (
+                    hidden_states[0].shape[self.coil_dim] != hx[0].shape[self.coil_dim]
+                    and not self.attention_module == "SemanticGuidanceModule"
+                ):
                     prev_hidden_states = hidden_states
                     hidden_states = []
                     for hs in prev_hidden_states:
@@ -185,8 +270,10 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                                 dim=self.coil_dim,
                             )
                         hidden_states.append(new_hidden_state)
-
-                hx = [hx[i] + hidden_states[i] for i in range(len(hx))]
+                if self.attention_module:
+                    hx = [self.attention_module_block[c](hx[i], hidden_states[i]) for i in range(len(hx))]
+                else:
+                    hx = [hx[i] + hidden_states[i] for i in range(len(hx))]
 
             init_reconstruction_pred = torch.view_as_real(init_reconstruction_pred)
 
@@ -284,19 +371,24 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
             return loss_func(t, p)
 
-        if self.accumulate_predictions:
+        if self.reconstruction_module_accumulate_predictions:
             rs_cascades_weights = torch.logspace(-1, 0, steps=len(prediction)).to(target.device)
             rs_cascades_loss = []
             for rs_cascade_pred in prediction:
                 cascades_weights = torch.logspace(-1, 0, steps=len(rs_cascade_pred)).to(target.device)
                 cascades_loss = []
                 for cascade_pred in rs_cascade_pred:
-                    time_steps_weights = torch.logspace(-1, 0, steps=self.time_steps).to(target.device)
+                    time_steps_weights = torch.logspace(-1, 0, steps=self.reconstruction_module_time_steps).to(
+                        target.device
+                    )
                     time_steps_loss = [
                         compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
                         for time_step_pred in cascade_pred
                     ]
-                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / self.time_steps
+                    cascade_loss = (
+                        sum(x * w for x, w in zip(time_steps_loss, time_steps_weights))
+                        / self.reconstruction_module_time_steps
+                    )
                     cascades_loss.append(cascade_loss)
                 rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / len(rs_cascade_pred)
                 rs_cascades_loss.append(rs_cascade_loss)
