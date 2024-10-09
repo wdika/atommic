@@ -85,6 +85,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
         self.coil_dim = cfg_dict.get("coil_dim", 1)
         self.consecutive_slices = cfg_dict.get("consecutive_slices", 1)
+        self.num_echoes
 
         self.rs_cascades = cfg_dict.get("joint_reconstruction_segmentation_module_cascades", 1)
         self.rs_module = torch.nn.ModuleList(
@@ -102,6 +103,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                     consecutive_slices=self.consecutive_slices,
                     coil_combination_method=cfg_dict.get("coil_combination_method", "SENSE"),
                     normalize_segmentation_output=cfg_dict.get("normalize_segmentation_output", True),
+                    num_echoes=self.num_echoes,
                 )
                 for _ in range(self.rs_cascades)
             ]
@@ -170,9 +172,6 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                     if f != 0
                 ]
 
-                if self.consecutive_slices > 1:
-                    hx = [x.unsqueeze(1) for x in hx]
-
                 # Check if the concatenated hidden states are the same size as the hidden state of the RNN
                 if hidden_states[0].shape[self.coil_dim] != hx[0].shape[self.coil_dim]:
                     prev_hidden_states = hidden_states
@@ -189,7 +188,6 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                 hx = [hx[i] + hidden_states[i] for i in range(len(hx))]
 
             init_reconstruction_pred = torch.view_as_real(init_reconstruction_pred)
-
         return pred_reconstructions, pred_segmentation
 
     def process_reconstruction_loss(  # noqa: MC0001
@@ -284,19 +282,31 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
             return loss_func(t, p)
 
-        if self.accumulate_predictions:
+        if self.reconstruction_module_accumulate_predictions:
             rs_cascades_weights = torch.logspace(-1, 0, steps=len(prediction)).to(target.device)
             rs_cascades_loss = []
             for rs_cascade_pred in prediction:
                 cascades_weights = torch.logspace(-1, 0, steps=len(rs_cascade_pred)).to(target.device)
                 cascades_loss = []
                 for cascade_pred in rs_cascade_pred:
-                    time_steps_weights = torch.logspace(-1, 0, steps=self.time_steps).to(target.device)
-                    time_steps_loss = [
-                        compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
-                        for time_step_pred in cascade_pred
-                    ]
-                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / self.time_steps
+                    time_steps_weights = torch.logspace(-1, 0, steps=len(cascade_pred)).to(target.device)
+                    if self.consecutive_slices > 1:
+                        time_steps_loss = [
+                            compute_reconstruction_loss(
+                                target.reshape(target.shape[0] * target.shape[1], *target.shape[2:]),
+                                time_step_pred.reshape(
+                                    time_step_pred.shape[0] * time_step_pred.shape[1], *time_step_pred.shape[2:]
+                                ),
+                                sensitivity_maps,
+                            )
+                            for time_step_pred in cascade_pred
+                        ]
+                    else:
+                        time_steps_loss = [
+                            compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
+                            for time_step_pred in cascade_pred
+                        ]
+                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / len(cascade_pred)
                     cascades_loss.append(cascade_loss)
                 rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / len(rs_cascade_pred)
                 rs_cascades_loss.append(rs_cascade_loss)
@@ -304,5 +314,15 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
         else:
             # keep the last prediction of the last cascade of the last rs cascade
             prediction = prediction[-1][-1][-1]
-            loss = compute_reconstruction_loss(target, prediction, sensitivity_maps)
+            if self.consecutive_slices > 1:
+                loss = compute_reconstruction_loss(
+                    target.reshape(target.shape[0] * target.shape[1], *target.shape[2:]),
+                    prediction.reshape(prediction.shape[0] * prediction.shape[1], *prediction.shape[2:]),
+                    sensitivity_maps,
+                )
+            loss = compute_reconstruction_loss(
+                target,
+                prediction,
+                sensitivity_maps,
+            )
         return loss

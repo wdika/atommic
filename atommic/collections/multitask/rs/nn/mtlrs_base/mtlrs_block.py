@@ -42,6 +42,7 @@ class MTLRSBlock(torch.nn.Module):
         consecutive_slices: int = 1,
         coil_combination_method: str = "SENSE",
         normalize_segmentation_output: bool = True,
+        num_echoes: int = 1,
     ):
         """Inits :class:`MTLRSBlock`.
 
@@ -184,7 +185,7 @@ class MTLRSBlock(torch.nn.Module):
         else:
             raise ValueError(f"Segmentation module {segmentation_module} not implemented.")
         self.segmentation_module = segmentation_module
-
+        self.num_echoes = num_echoes
         self.normalize_segmentation_output = normalize_segmentation_output
 
     def forward(  # noqa: MC0001
@@ -224,34 +225,47 @@ class MTLRSBlock(torch.nn.Module):
         if self.consecutive_slices > 1 and self.reconstruction_module_dimensionality == 2:
             # Do per slice reconstruction
             pred_reconstruction_slices = []
+            temp_hx = []
             for slice_idx in range(self.consecutive_slices):
                 y_slice = y[:, slice_idx, ...]
                 prediction_slice = y_slice.clone()
                 sensitivity_maps_slice = sensitivity_maps[:, slice_idx, ...]
-                mask_slice = mask[:, 0, ...]
+                if mask.dim() == 1:
+                    mask_slice = mask
+                else:
+                    mask_slice = mask[:, 0, ...]
                 init_reconstruction_pred_slice = init_reconstruction_pred[:, slice_idx, ...]
                 _pred_reconstruction_slice = (
                     None
                     if init_reconstruction_pred_slice is None or init_reconstruction_pred_slice.dim() < 4
                     else init_reconstruction_pred_slice
                 )
+                if isinstance(hx, list):
+                    if not hx[0].shape:
+                        hx_slice = hx
+                    else:
+                        hx_slice = [x[:, slice_idx, ...] for x in hx]
+                else:
+                    hx_slice = hx
                 cascades_predictions = []
                 for i, cascade in enumerate(self.reconstruction_module):
                     # Forward pass through the cascades
-                    prediction_slice, hx = cascade(
+                    prediction_slice, hx_slice = cascade(
                         prediction_slice,
                         y_slice,
                         sensitivity_maps_slice,
                         mask_slice,
-                        _pred_reconstruction_slice,
-                        hx,
+                        _pred_reconstruction_slice if i == 0 else prediction_slice[-1],
+                        hx_slice,
                         sigma,
                         keep_prediction=False if i == 0 else self.keep_prediction,
                     )
                     time_steps_predictions = [torch.view_as_complex(pred) for pred in prediction_slice]
                     cascades_predictions.append(torch.stack(time_steps_predictions, dim=0))
                 pred_reconstruction_slices.append(torch.stack(cascades_predictions, dim=0))
+                temp_hx.append(torch.stack(hx_slice, dim=0))
             preds = torch.stack(pred_reconstruction_slices, dim=3)
+            hx = torch.stack(temp_hx, dim=2)
 
             cascades_predictions = [
                 [
@@ -292,6 +306,8 @@ class MTLRSBlock(torch.nn.Module):
             _pred_reconstruction = _pred_reconstruction[-1]
         if _pred_reconstruction.shape[-1] != 2:
             _pred_reconstruction = torch.view_as_real(_pred_reconstruction)
+        if self.num_echoes > 1:
+            _pred_reconstruction = torch.sum(_pred_reconstruction, dim=0, keepdim=True)
         if self.consecutive_slices > 1 and _pred_reconstruction.dim() == 5:
             _pred_reconstruction = _pred_reconstruction.reshape(
                 _pred_reconstruction.shape[0] * _pred_reconstruction.shape[1],
@@ -319,10 +335,10 @@ class MTLRSBlock(torch.nn.Module):
             )
 
         pred_segmentation = torch.abs(pred_segmentation)
-
         if self.consecutive_slices > 1:
             # get batch size and number of slices from y, because if the reconstruction module is used they will
             # not be saved before
-            pred_segmentation = pred_segmentation.view([y.shape[0], y.shape[1], *pred_segmentation.shape[1:]])
-
+            pred_segmentation = pred_segmentation.view(
+                [int(y.shape[0] / self.num_echoes), y.shape[1], *pred_segmentation.shape[1:]]
+            )
         return pred_reconstruction, pred_segmentation, hx  # type: ignore

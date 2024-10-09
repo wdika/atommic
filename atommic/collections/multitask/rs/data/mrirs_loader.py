@@ -416,6 +416,8 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 kspace = kspace[:, :, 0, :] + kspace[:, :, 1, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2-mc":
                 kspace = np.concatenate([kspace[:, :, 0, :], kspace[:, :, 1, :]], axis=-1)
+            elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1-echo2":
+                kspace = kspace
             else:
                 warnings.warn(
                     f"Dataset format {dataset_format} is either not supported or set to None. "
@@ -423,12 +425,13 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 )
                 kspace = kspace[:, :, 0, :]
 
-            kspace = kspace[48:-48, 40:-40]
-
             sensitivity_map = self.get_consecutive_slices(hf, "maps", dataslice).astype(np.complex64)
-            sensitivity_map = sensitivity_map[..., 0]
-
-            sensitivity_map = sensitivity_map[48:-48, 40:-40]
+            if self.consecutive_slices > 1:
+                sensitivity_map = sensitivity_map[:, 48:-48, 40:-40]
+                kspace = kspace[:, 48:-48, 40:-40]
+            else:
+                sensitivity_map = sensitivity_map[48:-48, 40:-40]
+                kspace = kspace[48:-48, 40:-40]
 
             if masking == "custom":
                 mask = np.array([])
@@ -470,22 +473,17 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             # combine Lateral Meniscus and Medial Meniscus
             medial_meniscus = lateral_meniscus + medial_meniscus
 
-            if self.consecutive_slices > 1:
-                segmentation_labels_dim = 1
-            else:
-                segmentation_labels_dim = 0
-
             # stack the labels in the last dimension
             segmentation_labels = np.stack(
                 [patellar_cartilage, femoral_cartilage, tibial_cartilage, medial_meniscus],
-                axis=segmentation_labels_dim,
+                axis=-1,
             )
 
             # TODO: This is hardcoded on the SKM-TEA side, how to generalize this?
             # We need to crop the segmentation labels in the frequency domain to reduce the FOV.
-            segmentation_labels = np.fft.fftshift(np.fft.fft2(segmentation_labels))
-            segmentation_labels = segmentation_labels[:, 48:-48, 40:-40]
-            segmentation_labels = np.fft.ifft2(np.fft.ifftshift(segmentation_labels)).real
+            segmentation_labels = np.fft.fftshift(np.fft.fft2(segmentation_labels, axes=(-3, -2)))
+            segmentation_labels = segmentation_labels[..., 48:-48, 40:-40, :]
+            segmentation_labels = np.fft.ifft2(np.fft.ifftshift(segmentation_labels), axes=(-3, -2)).real
 
             imspace = np.empty([])
 
@@ -499,12 +497,24 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 metadata["noise"] = 1.0
 
             attrs.update(metadata)
-
-        kspace = np.transpose(kspace, (2, 0, 1))
-        sensitivity_map = np.transpose(sensitivity_map.squeeze(), (2, 0, 1))
-
+        if not is_none(dataset_format) and dataset_format == "skm-tea-echo1-echo2":
+            if self.consecutive_slices > 1:
+                segmentation_labels = np.transpose(segmentation_labels, (0, 3, 1, 2))
+                kspace = np.transpose(kspace, (3, 0, 4, 1, 2))
+                sensitivity_map = np.transpose(sensitivity_map, (4, 0, 3, 1, 2))
+            else:
+                segmentation_labels = np.transpose(segmentation_labels, (2, 0, 1))
+                kspace = np.transpose(kspace, (2, 3, 0, 1))
+                sensitivity_map = np.transpose(sensitivity_map, (3, 2, 0, 1))
+        elif self.consecutive_slices > 1 and not is_none(dataset_format) and dataset_format != "skm-tea-echo1-echo2":
+            segmentation_labels = np.transpose(segmentation_labels, (0, 3, 1, 2))
+            kspace = np.transpose(kspace, (0, 3, 1, 2))
+            sensitivity_map = np.transpose(sensitivity_map.squeeze(), (0, 3, 1, 2))
+        else:
+            segmentation_labels = np.transpose(segmentation_labels, (2, 0, 1))
+            kspace = np.transpose(kspace, (2, 0, 1))
+            sensitivity_map = np.transpose(sensitivity_map.squeeze(), (2, 0, 1))
         attrs["log_image"] = bool(dataslice in self.indices_to_log)
-
         return (
             (
                 kspace,
