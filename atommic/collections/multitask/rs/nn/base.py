@@ -36,7 +36,8 @@ from atommic.collections.multitask.rs.data import mrirs_loader
 from atommic.collections.multitask.rs.parts.transforms import RSMRIDataTransforms
 from atommic.collections.reconstruction.losses.na import NoiseAwareLoss
 from atommic.collections.reconstruction.losses.ssim import SSIMLoss
-from atommic.collections.reconstruction.metrics import mse, nmse, psnr, ssim
+from atommic.collections.reconstruction.losses.haarpsi import HaarPSILoss
+from atommic.collections.reconstruction.metrics import mse, nmse, psnr, ssim, haarpsi
 from atommic.collections.segmentation.losses.cross_entropy import CrossEntropyLoss
 from atommic.collections.segmentation.losses.dice import Dice
 
@@ -125,6 +126,8 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                         self.reconstruction_losses[name] = NoiseAwareLoss()
                     elif name == "l1":
                         self.reconstruction_losses[name] = L1Loss()
+                    elif name == "haarpsi":
+                        self.reconstruction_losses[name] = HaarPSILoss()
             # replace losses names by 'loss_1', 'loss_2', etc. to properly iterate in the aggregator loss
             self.reconstruction_losses = {f"loss_{i+1}": v for i, v in enumerate(self.reconstruction_losses.values())}
             self.total_reconstruction_losses = len(self.reconstruction_losses)
@@ -257,12 +260,14 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             self.NMSE = atommic_common.nn.base.DistributedMetricSum()  # type: ignore
             self.SSIM = atommic_common.nn.base.DistributedMetricSum()  # type: ignore
             self.PSNR = atommic_common.nn.base.DistributedMetricSum()  # type: ignore
+            self.HaarPSI = atommic_common.nn.base.DistributedMetricSum()  # type: ignore
             self.TotExamples = atommic_common.nn.base.DistributedMetricSum()  # type: ignore
 
             self.mse_vals_reconstruction: Dict = defaultdict(dict)
             self.nmse_vals_reconstruction: Dict = defaultdict(dict)
             self.ssim_vals_reconstruction: Dict = defaultdict(dict)
             self.psnr_vals_reconstruction: Dict = defaultdict(dict)
+            self.haarpsi_vals_reconstruction: Dict = defaultdict(dict)
 
         if not is_none(cross_entropy_metric_classes_weight) and cross_entropy_metric_classes_weight != 0.0:
             self.cross_entropy_metric = CrossEntropyLoss(
@@ -523,6 +528,16 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 return loss_func(
                     t,
                     p,
+                    data_range=torch.tensor([max(torch.max(t).item(), torch.max(p).item())]).unsqueeze(dim=0).to(t),
+                )
+
+            if "haarpsi" in str(loss_func).lower():
+                p = torch.abs(p / torch.max(torch.abs(p)))
+                t = torch.abs(t / torch.max(torch.abs(t)))
+
+                return loss_func(
+                    p,
+                    t,
                     data_range=torch.tensor([max(torch.max(t).item(), torch.max(p).item())]).unsqueeze(dim=0).to(t),
                 )
 
@@ -820,6 +835,12 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             self.psnr_vals_reconstruction[fname[_batch_idx_]][str(slice_idx[_batch_idx_].item())] = torch.tensor(
                 psnr(output_target_reconstruction, output_predictions_reconstruction, maxval=max_value)
             ).view(1)
+            max_value = max(np.max(output_target_reconstruction), np.max(output_predictions_reconstruction))
+            self.haarpsi_vals_reconstruction[fname[_batch_idx_]][str(slice_idx[_batch_idx_].item())] = torch.tensor(  # type: ignore
+                haarpsi(output_target_reconstruction, output_predictions_reconstruction, maxval=max_value)
+            ).view(
+                1
+            )
 
             if self.cross_entropy_metric is not None:
                 self.cross_entropy_vals[fname[_batch_idx_]][
@@ -1525,6 +1546,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             nmse_vals_reconstruction = defaultdict(dict)
             ssim_vals_reconstruction = defaultdict(dict)
             psnr_vals_reconstruction = defaultdict(dict)
+            haarpsi_vals_reconstruction = defaultdict(dict)
 
             for k, v in self.mse_vals_reconstruction.items():
                 mse_vals_reconstruction[k].update(v)
@@ -1534,8 +1556,10 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 ssim_vals_reconstruction[k].update(v)
             for k, v in self.psnr_vals_reconstruction.items():
                 psnr_vals_reconstruction[k].update(v)
+            for k, v in self.haarpsi_vals_reconstruction.items():
+                haarpsi_vals_reconstruction[k].update(v)
 
-            metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0}
+            metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0, "HaarPSI": 0}
 
         local_examples = 0
         for fname in dice_vals:
@@ -1561,6 +1585,9 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
                     torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
                 )
+                metrics_reconstruction["HaarPSI"] = metrics_reconstruction["HaarPSI"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in haarpsi_vals_reconstruction[fname].items()])
+                )
 
         # reduce across ddp via sum
         if self.cross_entropy_metric is not None:
@@ -1572,6 +1599,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             metrics_reconstruction["NMSE"] = self.NMSE(metrics_reconstruction["NMSE"])
             metrics_reconstruction["SSIM"] = self.SSIM(metrics_reconstruction["SSIM"])
             metrics_reconstruction["PSNR"] = self.PSNR(metrics_reconstruction["PSNR"])
+            metrics_reconstruction["HaarPSI"] = self.HaarPSI(metrics_reconstruction["HaarPSI"])
 
         tot_examples = self.TotExamples(torch.tensor(local_examples))
 
@@ -1606,6 +1634,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             nmse_vals_reconstruction = defaultdict(dict)
             ssim_vals_reconstruction = defaultdict(dict)
             psnr_vals_reconstruction = defaultdict(dict)
+            haarpsi_vals_reconstruction = defaultdict(dict)
 
             for k, v in self.mse_vals_reconstruction.items():
                 mse_vals_reconstruction[k].update(v)
@@ -1615,8 +1644,10 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 ssim_vals_reconstruction[k].update(v)
             for k, v in self.psnr_vals_reconstruction.items():
                 psnr_vals_reconstruction[k].update(v)
+            for k, v in self.haarpsi_vals_reconstruction.items():
+                haarpsi_vals_reconstruction[k].update(v)
 
-            metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0}
+            metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0, "HaarPSI": 0}
 
         local_examples = 0
         for fname in dice_vals:
@@ -1642,6 +1673,9 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
                     torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
                 )
+                metrics_reconstruction["HaarPSI"] = metrics_reconstruction["HaarPSI"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in haarpsi_vals_reconstruction[fname].items()])
+                )
 
         # reduce across ddp via sum
         if self.cross_entropy_metric is not None:
@@ -1653,6 +1687,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             metrics_reconstruction["NMSE"] = self.NMSE(metrics_reconstruction["NMSE"])
             metrics_reconstruction["SSIM"] = self.SSIM(metrics_reconstruction["SSIM"])
             metrics_reconstruction["PSNR"] = self.PSNR(metrics_reconstruction["PSNR"])
+            metrics_reconstruction["HaarPSI"] = self.SSIM(metrics_reconstruction["HaarPSI"])
 
         tot_examples = self.TotExamples(torch.tensor(local_examples))
 

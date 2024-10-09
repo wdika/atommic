@@ -13,5 +13,8 @@ MRI Reconstruction Metrics
 .. autofunction:: atommic.collections.reconstruction.metrics.reconstruction_metrics.ssim
 
 
+.. autofunction:: atommic.collections.reconstruction.metrics.reconstruction_metrics.haarpsi
+
+
 .. autoclass:: atommic.collections.reconstruction.metrics.reconstruction_metrics.ReconstructionMetrics
     :special-members: __init__

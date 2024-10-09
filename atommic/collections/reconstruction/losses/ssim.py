@@ -40,7 +40,7 @@ class SSIMLoss(Loss):
         NP = win_size**2
         self.cov_norm = NP / (NP - 1)
 
-    def forward(self, X: torch.Tensor, Y: torch.Tensor, data_range: torch.Tensor = None):
+    def forward(self, X: torch.Tensor, Y: torch.Tensor, data_range: torch.Tensor = None) -> torch.Tensor:
         """Forward pass of :class:`SSIMLoss`.
 
         Parameters
@@ -52,12 +52,22 @@ class SSIMLoss(Loss):
         data_range : torch.Tensor
             Data range of the input tensors. If ``None``, it is computed as the maximum range of the input tensors.
             Default is ``None``.
+
+        Returns
+        -------
+        torch.Tensor
+            SSIM loss tensor.
         """
         if not isinstance(self.w, torch.Tensor):  # type: ignore  # pylint: disable=access-member-before-definition
             raise AssertionError
 
         # This is necessary to first assign self.w to CUDA and then in case of fp32 to avoid RuntimeError: Inference
         # tensors cannot be saved for backward.
+        if X.dim() == 3:
+            X = X.unsqueeze(1)
+        if Y.dim() == 3:
+            Y = Y.unsqueeze(1)
+
         self.w = self.w.to(Y).clone()  # type: ignore
 
         if data_range is None:
