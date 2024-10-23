@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from atommic.collections.segmentation.nn.lambdaunet import SegmentationLambdaUNet
+from atommic.collections.segmentation.nn.cirim import SegmentationCIRIM
 from tests.collections.reconstruction.mri_data.conftest import create_input
 
 
@@ -18,16 +18,23 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             {
                 "use_reconstruction_module": False,
                 "modality": "MRI",
-                "segmentation_module": "LambdaUNet",
+                "recurrent_layer": "IndRNN",
+                "conv_filters": [64, 64, 4],
+                "conv_kernels": [5, 3, 3],
+                "conv_dilations": [1, 2, 1],
+                "conv_bias": [True, True, False],
+                "recurrent_filters": [64, 64, 0],
+                "recurrent_kernels": [1, 1, 0],
+                "recurrent_dilations": [1, 1, 0],
+                "recurrent_bias": [True, True, False],
+                "depth": 2,
+                "conv_dim": 2,
+                "time_steps": 8,
+                "num_cascades": 1,
+                "accumulate_predictions": True,
+                "no_dc": True,
+                "keep_prediction": True,
                 "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_channels": 32,
-                "segmentation_module_pooling_layers": 4,
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_query_depth": 16,
-                "segmentation_module_intra_depth": 4,
-                "segmentation_module_receptive_kernel_kernel": 1,
-                "segmentation_module_temporal_kernel": 1,
                 "segmentation_loss": {"dice": 1.0},
                 "dice_loss_include_background": False,
                 "dice_loss_to_onehot_y": False,
@@ -65,16 +72,23 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             {
                 "use_reconstruction_module": False,
                 "modality": "MRI",
-                "segmentation_module": "LambdaUNet",
+                "recurrent_layer": "IndRNN",
+                "conv_filters": [64, 64, 4],
+                "conv_kernels": [5, 3, 3],
+                "conv_dilations": [1, 2, 1],
+                "conv_bias": [True, True, False],
+                "recurrent_filters": [64, 64, 0],
+                "recurrent_kernels": [1, 1, 0],
+                "recurrent_dilations": [1, 1, 0],
+                "recurrent_bias": [True, True, False],
+                "depth": 2,
+                "conv_dim": 2,
+                "time_steps": 4,
+                "num_cascades": 5,
+                "accumulate_predictions": True,
+                "no_dc": True,
+                "keep_prediction": True,
                 "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_channels": 32,
-                "segmentation_module_pooling_layers": 4,
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_query_depth": 16,
-                "segmentation_module_intra_depth": 4,
-                "segmentation_module_receptive_kernel_kernel": 1,
-                "segmentation_module_temporal_kernel": 1,
                 "segmentation_loss": {"dice": 1.0},
                 "dice_loss_include_background": False,
                 "dice_loss_to_onehot_y": False,
@@ -112,16 +126,23 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             {
                 "use_reconstruction_module": False,
                 "modality": "CT",
-                "segmentation_module": "LambdaUNet",
+                "recurrent_layer": "IndRNN",
+                "conv_filters": [64, 64, 4],
+                "conv_kernels": [5, 3, 3],
+                "conv_dilations": [1, 2, 1],
+                "conv_bias": [True, True, False],
+                "recurrent_filters": [64, 64, 0],
+                "recurrent_kernels": [1, 1, 0],
+                "recurrent_dilations": [1, 1, 0],
+                "recurrent_bias": [True, True, False],
+                "depth": 2,
+                "conv_dim": 2,
+                "time_steps": 8,
+                "num_cascades": 1,
+                "accumulate_predictions": True,
+                "no_dc": True,
+                "keep_prediction": True,
                 "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_channels": 32,
-                "segmentation_module_pooling_layers": 4,
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_query_depth": 16,
-                "segmentation_module_intra_depth": 4,
-                "segmentation_module_receptive_kernel_kernel": 1,
-                "segmentation_module_temporal_kernel": 1,
                 "segmentation_loss": {"dice": 1.0},
                 "dice_loss_include_background": False,
                 "dice_loss_to_onehot_y": False,
@@ -159,16 +180,23 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             {
                 "use_reconstruction_module": False,
                 "modality": "CT",
-                "segmentation_module": "LambdaUNet",
+                "recurrent_layer": "IndRNN",
+                "conv_filters": [64, 64, 4],
+                "conv_kernels": [5, 3, 3],
+                "conv_dilations": [1, 2, 1],
+                "conv_bias": [True, True, False],
+                "recurrent_filters": [64, 64, 0],
+                "recurrent_kernels": [1, 1, 0],
+                "recurrent_dilations": [1, 1, 0],
+                "recurrent_bias": [True, True, False],
+                "depth": 2,
+                "conv_dim": 2,
+                "time_steps": 4,
+                "num_cascades": 5,
+                "accumulate_predictions": True,
+                "no_dc": True,
+                "keep_prediction": True,
                 "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_channels": 32,
-                "segmentation_module_pooling_layers": 4,
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_query_depth": 16,
-                "segmentation_module_intra_depth": 4,
-                "segmentation_module_receptive_kernel_kernel": 1,
-                "segmentation_module_temporal_kernel": 1,
                 "segmentation_loss": {"dice": 1.0},
                 "dice_loss_include_background": False,
                 "dice_loss_to_onehot_y": False,
@@ -203,9 +231,9 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
         ),
     ],
 )
-def test_lambda_unet(shape, cfg, center_fractions, accelerations, dimensionality, segmentation_classes, trainer):
+def test_cirim(shape, cfg, center_fractions, accelerations, dimensionality, segmentation_classes, trainer):
     """
-    Test the Segmentation Lambda UNet with different parameters.
+    Test the Segmentation CIRIM with different parameters.
 
     Parameters
     ----------
@@ -232,8 +260,6 @@ def test_lambda_unet(shape, cfg, center_fractions, accelerations, dimensionality
     if consecutive_slices > 1:
         output = torch.stack([output for _ in range(consecutive_slices)], 1)
         classes_dim += 1
-    else:
-        output = output.unsqueeze(1)
 
     if output.shape[-1] == 2:
         output = torch.abs(torch.view_as_complex(output))
@@ -245,13 +271,10 @@ def test_lambda_unet(shape, cfg, center_fractions, accelerations, dimensionality
     trainer = OmegaConf.create(OmegaConf.to_container(trainer, resolve=True))
     trainer = pl.Trainer(**trainer)
 
-    segmentationnet = SegmentationLambdaUNet.get_model(cfg, trainer=trainer)
+    segmentationnet = SegmentationCIRIM.get_model(cfg, trainer=trainer)
 
     with torch.no_grad():
         pred_segmentation = segmentationnet.forward(output)
-
-    if consecutive_slices == 1:
-        output = output.squeeze(1)
 
     output = torch.stack([output for _ in range(segmentation_classes)], classes_dim)
 

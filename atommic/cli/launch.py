@@ -33,6 +33,7 @@ from atommic.collections.reconstruction.nn.vsnet import VSNet
 from atommic.collections.reconstruction.nn.xpdnet import XPDNet
 from atommic.collections.reconstruction.nn.zf import ZF
 from atommic.collections.segmentation.nn.attentionunet import SegmentationAttentionUNet
+from atommic.collections.segmentation.nn.cirim import SegmentationCIRIM
 from atommic.collections.segmentation.nn.dynunet import SegmentationDYNUNet
 from atommic.collections.segmentation.nn.lambdaunet import SegmentationLambdaUNet
 from atommic.collections.segmentation.nn.unet import SegmentationUNet
@@ -127,6 +128,8 @@ def main(cfg: DictConfig):  # noqa: MC0001
         model = RecurrentVarNet(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONATTENTIONUNET":
         model = SegmentationAttentionUNet.get_model(cfg.model, trainer=trainer)
+    elif model_name == "SEGMENTATIONCIRIM":
+        model = SegmentationCIRIM.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONDYNUNET":
         model = SegmentationDYNUNet.get_model(cfg.model, trainer=trainer)
     elif model_name == "SEGMENTATIONLAMBDAUNET":

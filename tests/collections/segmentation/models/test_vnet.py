@@ -6,8 +6,6 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from atommic.collections.common.data.subsample import Random1DMaskFunc
-from atommic.collections.common.parts import utils
 from atommic.collections.segmentation.nn.vnet import SegmentationVNet
 from tests.collections.reconstruction.mri_data.conftest import create_input
 
@@ -16,9 +14,53 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
     "shape, cfg, center_fractions, accelerations, dimensionality, segmentation_classes, trainer",
     [
         (
-            [1, 3, 32, 16, 2],
+            [1, 32, 16],
             {
                 "use_reconstruction_module": False,
+                "modality": "MRI",
+                "segmentation_module": "VNet",
+                "segmentation_module_input_channels": 1,
+                "segmentation_module_output_channels": 4,
+                "segmentation_module_activation": "elu",
+                "segmentation_module_dropout": 0.0,
+                "segmentation_module_bias": False,
+                "segmentation_loss": {"dice": 1.0},
+                "dice_loss_include_background": False,
+                "dice_loss_to_onehot_y": False,
+                "dice_loss_sigmoid": True,
+                "dice_loss_softmax": False,
+                "dice_loss_other_act": None,
+                "dice_loss_squared_pred": False,
+                "dice_loss_jaccard": False,
+                "dice_loss_reduction": "mean",
+                "dice_loss_smooth_nr": 1,
+                "dice_loss_smooth_dr": 1,
+                "dice_loss_batch": True,
+                "consecutive_slices": 1,
+                "magnitude_input": True,
+            },
+            [0.08],
+            [4],
+            2,
+            4,
+            {
+                "strategy": "ddp",
+                "accelerator": "cpu",
+                "num_nodes": 1,
+                "max_epochs": 20,
+                "precision": 32,
+                "enable_checkpointing": False,
+                "logger": False,
+                "log_every_n_steps": 50,
+                "check_val_every_n_epoch": -1,
+                "max_steps": -1,
+            },
+        ),
+        (
+            [1, 45, 45],
+            {
+                "use_reconstruction_module": False,
+                "modality": "MRI",
                 "segmentation_module": "VNet",
                 "segmentation_module_input_channels": 1,
                 "segmentation_module_output_channels": 4,
@@ -38,13 +80,7 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "dice_loss_smooth_dr": 1,
                 "dice_loss_batch": True,
                 "consecutive_slices": 5,
-                "coil_combination_method": "SENSE",
                 "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
             },
             [0.08],
             [4],
@@ -55,7 +91,7 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "accelerator": "cpu",
                 "num_nodes": 1,
                 "max_epochs": 20,
-                "precision": 32,
+                "precision": 16,
                 "enable_checkpointing": False,
                 "logger": False,
                 "log_every_n_steps": 50,
@@ -64,155 +100,11 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             },
         ),
         (
-            [1, 13, 64, 32, 2],
+            [1, 32, 16],
             {
                 "use_reconstruction_module": False,
-                "segmentation_module": "VNet",
-                "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_activation": "elu",
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_bias": False,
-                "segmentation_loss": {"dice": 1.0},
-                "dice_loss_include_background": False,
-                "dice_loss_to_onehot_y": False,
-                "dice_loss_sigmoid": True,
-                "dice_loss_softmax": False,
-                "dice_loss_other_act": None,
-                "dice_loss_squared_pred": False,
-                "dice_loss_jaccard": False,
-                "dice_loss_reduction": "mean",
-                "dice_loss_smooth_nr": 1,
-                "dice_loss_smooth_dr": 1,
-                "dice_loss_batch": True,
-                "consecutive_slices": 1,
-                "coil_combination_method": "SENSE",
-                "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
-            },
-            [0.08],
-            [4],
-            2,
-            4,
-            {
-                "strategy": "ddp",
-                "accelerator": "cpu",
-                "num_nodes": 1,
-                "max_epochs": 20,
-                "precision": 32,
-                "enable_checkpointing": False,
-                "logger": False,
-                "log_every_n_steps": 50,
-                "check_val_every_n_epoch": -1,
-                "max_steps": -1,
-            },
-        ),
-        (
-            [1, 3, 32, 16, 2],
-            {
-                "use_reconstruction_module": False,
-                "segmentation_module": "VNet",
-                "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_activation": "elu",
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_bias": False,
-                "segmentation_loss": {"dice": 1.0},
-                "dice_loss_include_background": False,
-                "dice_loss_to_onehot_y": False,
-                "dice_loss_sigmoid": True,
-                "dice_loss_softmax": False,
-                "dice_loss_other_act": None,
-                "dice_loss_squared_pred": False,
-                "dice_loss_jaccard": False,
-                "dice_loss_reduction": "mean",
-                "dice_loss_smooth_nr": 1,
-                "dice_loss_smooth_dr": 1,
-                "dice_loss_batch": True,
-                "consecutive_slices": 1,
-                "coil_combination_method": "SENSE",
-                "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
-            },
-            [0.08],
-            [4],
-            2,
-            4,
-            {
-                "strategy": "ddp",
-                "accelerator": "cpu",
-                "num_nodes": 1,
-                "max_epochs": 20,
-                "precision": 32,
-                "enable_checkpointing": False,
-                "logger": False,
-                "log_every_n_steps": 50,
-                "check_val_every_n_epoch": -1,
-                "max_steps": -1,
-            },
-        ),
-        (
-            [1, 13, 64, 32, 2],
-            {
-                "use_reconstruction_module": False,
-                "segmentation_module": "VNet",
-                "segmentation_module_input_channels": 1,
-                "segmentation_module_output_channels": 4,
-                "segmentation_module_activation": "elu",
-                "segmentation_module_dropout": 0.0,
-                "segmentation_module_bias": False,
-                "segmentation_loss": {"dice": 1.0},
-                "dice_loss_include_background": False,
-                "dice_loss_to_onehot_y": False,
-                "dice_loss_sigmoid": True,
-                "dice_loss_softmax": False,
-                "dice_loss_other_act": None,
-                "dice_loss_squared_pred": False,
-                "dice_loss_jaccard": False,
-                "dice_loss_reduction": "mean",
-                "dice_loss_smooth_nr": 1,
-                "dice_loss_smooth_dr": 1,
-                "dice_loss_batch": True,
-                "consecutive_slices": 1,
-                "coil_combination_method": "SENSE",
-                "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
-            },
-            [0.08],
-            [4],
-            2,
-            4,
-            {
-                "strategy": "ddp",
-                "accelerator": "cpu",
-                "num_nodes": 1,
-                "max_epochs": 20,
-                "precision": 32,
-                "enable_checkpointing": False,
-                "logger": False,
-                "log_every_n_steps": 50,
-                "check_val_every_n_epoch": -1,
-                "max_steps": -1,
-            },
-        ),
-        (
-            [1, 13, 64, 32, 2],
-            {
-                "use_reconstruction_module": False,
-                "segmentation_module": "VNet",
                 "modality": "CT",
+                "segmentation_module": "VNet",
                 "segmentation_module_input_channels": 1,
                 "segmentation_module_output_channels": 4,
                 "segmentation_module_activation": "elu",
@@ -231,13 +123,7 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "dice_loss_smooth_dr": 1,
                 "dice_loss_batch": True,
                 "consecutive_slices": 1,
-                "coil_combination_method": "SENSE",
                 "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
             },
             [0.08],
             [4],
@@ -257,11 +143,11 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
             },
         ),
         (
-            [1, 13, 64, 32, 2],
+            [1, 45, 45],
             {
                 "use_reconstruction_module": False,
+                "modality": "CT",
                 "segmentation_module": "VNet",
-                "modality": "MRI",
                 "segmentation_module_input_channels": 1,
                 "segmentation_module_output_channels": 4,
                 "segmentation_module_activation": "elu",
@@ -279,14 +165,8 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "dice_loss_smooth_nr": 1,
                 "dice_loss_smooth_dr": 1,
                 "dice_loss_batch": True,
-                "consecutive_slices": 1,
-                "coil_combination_method": "SENSE",
+                "consecutive_slices": 5,
                 "magnitude_input": True,
-                "use_sens_net": False,
-                "fft_centered": False,
-                "fft_normalization": "backward",
-                "spatial_dims": [-2, -1],
-                "coil_dim": 1,
             },
             [0.08],
             [4],
@@ -297,7 +177,7 @@ from tests.collections.reconstruction.mri_data.conftest import create_input
                 "accelerator": "cpu",
                 "num_nodes": 1,
                 "max_epochs": 20,
-                "precision": 32,
+                "precision": 16,
                 "enable_checkpointing": False,
                 "logger": False,
                 "log_every_n_steps": 50,
@@ -328,26 +208,17 @@ def test_vnet(shape, cfg, center_fractions, accelerations, dimensionality, segme
     trainer : dict
         Dictionary with the parameters of the trainer
     """
-    mask_func = Random1DMaskFunc(center_fractions, accelerations)
-    x = create_input(shape)
+    output = create_input(shape)
 
-    outputs, masks = [], []
-    for i in range(x.shape[0]):
-        output, mask, _ = utils.apply_mask(x[i : i + 1], mask_func, seed=123)
-        outputs.append(output)
-        masks.append(mask)
+    classes_dim = 1
 
-    output = torch.cat(outputs)
-    mask = torch.cat(masks)
-
-    coil_dim = cfg.get("coil_dim")
     consecutive_slices = cfg.get("consecutive_slices")
     if consecutive_slices > 1:
         output = torch.stack([output for _ in range(consecutive_slices)], 1)
-        coil_dim += 1
+        classes_dim += 1
 
-    if dimensionality == 3 and shape[1] > 1:
-        mask = torch.cat([mask, mask], 1)
+    if output.shape[-1] == 2:
+        output = torch.abs(torch.view_as_complex(output))
 
     cfg = OmegaConf.create(cfg)
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
@@ -356,24 +227,12 @@ def test_vnet(shape, cfg, center_fractions, accelerations, dimensionality, segme
     trainer = OmegaConf.create(OmegaConf.to_container(trainer, resolve=True))
     trainer = pl.Trainer(**trainer)
 
-    segmentation_vnet = SegmentationVNet.get_model(cfg, trainer=trainer)
+    segmentationnet = SegmentationVNet.get_model(cfg, trainer=trainer)
 
     with torch.no_grad():
-        pred_segmentation = segmentation_vnet.forward(output.sum(coil_dim))
+        pred_segmentation = segmentationnet.forward(output)
 
-    if consecutive_slices > 1:
-        output = torch.view_as_complex(
-            output.reshape(
-                [output.shape[0] * output.shape[1], output.shape[2], output.shape[3], output.shape[4], output.shape[5]]
-            ).sum(coil_dim - 1)
-        )
-        output = torch.stack([output for _ in range(segmentation_classes)], 1)
-        pred_segmentation = pred_segmentation.reshape(
-            pred_segmentation.shape[0] * pred_segmentation.shape[1], *pred_segmentation.shape[2:]
-        )
-        if pred_segmentation.shape != output.shape:
-            raise AssertionError
-    else:
-        output = torch.view_as_complex(torch.stack([output for _ in range(segmentation_classes)], 1).sum(coil_dim + 1))
-        if pred_segmentation.shape != output.shape:
-            raise AssertionError
+    output = torch.stack([output for _ in range(segmentation_classes)], classes_dim)
+
+    if pred_segmentation.shape != output.shape:
+        raise AssertionError

@@ -10,6 +10,7 @@ from typing import Dict, Tuple, Union
 
 import h5py
 import numpy as np
+import SimpleITK as sitk
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -154,6 +155,8 @@ class BaseMRISegmentationModel(BaseMRIModel, ABC):
         dice_metric_smooth_nr = cfg_dict.get("dice_metric_smooth_nr", 1e-5)
         dice_metric_smooth_dr = cfg_dict.get("dice_metric_smooth_dr", 1e-5)
         dice_metric_batch = cfg_dict.get("dice_metric_batch", True)
+
+        self.export_data_type = cfg_dict.get("export_data_type", "nii")
 
         # Initialize the module
         super().__init__(cfg=cfg, trainer=trainer)
@@ -798,9 +801,15 @@ class BaseMRISegmentationModel(BaseMRIModel, ABC):
             out_dir = Path(os.path.join(self.logger.log_dir, "segmentations"))
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        for fname, segmentations_pred in segmentations.items():
-            with h5py.File(out_dir / fname, "w") as hf:
-                hf.create_dataset("segmentation", data=segmentations_pred)
+        if self.export_data_type == "h5":
+            for fname, segmentations_pred in segmentations.items():
+                with h5py.File(out_dir / fname, "w") as hf:
+                    hf.create_dataset("segmentation", data=segmentations_pred)
+        elif self.export_data_type == "nii":
+            for fname, segmentations_pred in segmentations.items():
+                sitk.WriteImage(
+                    sitk.GetImageFromArray(segmentations_pred.astype(np.uint8)), str(out_dir / f"{fname}.nii.gz")
+                )
 
     @staticmethod
     def _setup_dataloader_from_config(cfg: DictConfig) -> DataLoader:
@@ -1079,6 +1088,8 @@ class BaseCTSegmentationModel(BaseCTModel, ABC):
         dice_metric_smooth_nr = cfg_dict.get("dice_metric_smooth_nr", 1e-5)
         dice_metric_smooth_dr = cfg_dict.get("dice_metric_smooth_dr", 1e-5)
         dice_metric_batch = cfg_dict.get("dice_metric_batch", True)
+
+        self.export_data_type = cfg_dict.get("export_data_type", "nii")
 
         # Initialize the module
         super().__init__(cfg=cfg, trainer=trainer)
@@ -1726,9 +1737,15 @@ class BaseCTSegmentationModel(BaseCTModel, ABC):
             out_dir = Path(os.path.join(self.logger.log_dir, "segmentations"))
         out_dir.mkdir(exist_ok=True, parents=True)
 
-        for fname, segmentations_pred in segmentations.items():
-            with h5py.File(out_dir / fname, "w") as hf:
-                hf.create_dataset("segmentation", data=segmentations_pred)
+        if self.export_data_type == "h5":
+            for fname, segmentations_pred in segmentations.items():
+                with h5py.File(out_dir / fname, "w") as hf:
+                    hf.create_dataset("segmentation", data=segmentations_pred)
+        elif self.export_data_type == "nii":
+            for fname, segmentations_pred in segmentations.items():
+                sitk.WriteImage(
+                    sitk.GetImageFromArray(segmentations_pred.astype(np.uint8)), str(out_dir / f"{fname}.nii.gz")
+                )
 
     @staticmethod
     def _setup_dataloader_from_config(cfg: DictConfig) -> DataLoader:

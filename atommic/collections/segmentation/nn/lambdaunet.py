@@ -85,6 +85,8 @@ class MRISegmentationLambdaUNet(BaseMRISegmentationNet):
         if self.consecutive_slices > 1:
             batch, slices = image.shape[:2]
             image = image.reshape(batch * slices, *image.shape[2:])
+        if image.dim() == 3:
+            image = image.unsqueeze(1)
         segmentation = self.segmentation_module(image)
         segmentation = self.unpad(segmentation, *pad_sizes)
         if self.normalize:
@@ -172,6 +174,8 @@ class CTSegmentationLambdaUNet(BaseCTSegmentationNet):
         if self.consecutive_slices > 1:
             batch, slices = image.shape[:2]
             image = image.reshape(batch * slices, *image.shape[2:])
+        if image.dim() == 3:
+            image = image.unsqueeze(1)
         segmentation = self.segmentation_module(image)
         segmentation = self.unpad(segmentation, *pad_sizes)
         if self.normalize:

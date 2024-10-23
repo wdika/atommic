@@ -234,8 +234,7 @@ class SegmentationCTDataset(CTDataset):
 
         if self.segmentations_root is not None and self.segmentations_root != "None":
             # read the segmentation labels
-            segmentation_labels = sitk.ReadImage(f"{self.segmentations_root}/{fname.name}")
-            segmentation_labels = sitk.GetArrayFromImage(segmentation_labels)
+            segmentation_labels = sitk.GetArrayFromImage(sitk.ReadImage(f"{self.segmentations_root}/{fname.name}"))
             segmentation_labels = np.asarray(self.get_consecutive_slices(segmentation_labels, dataslice))
             segmentation_labels = self.process_segmentation_labels(segmentation_labels)
         else:

@@ -1621,7 +1621,6 @@ class RandomFlipper:  # TODO: Implement RandomFlipper for complex MRI data
         """String representation of :class:`RandomFlipper`."""
         return str(self.__repr__)
 
-    # pylint: disable=unused-argument
     def forward(
         self,
         data: torch.Tensor,
