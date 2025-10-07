@@ -530,7 +530,9 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
 
         return compute_reconstruction_loss(target, prediction, sensitivity_maps)
 
-    def process_segmentation_loss(self, target: torch.Tensor, prediction: torch.Tensor, attrs: Dict) -> Dict:
+    def process_segmentation_loss(
+        self, target: torch.Tensor, prediction: torch.Tensor, attrs: Dict, loss_func: torch.nn.Module
+    ) -> Dict:
         """Processes the segmentation loss.
 
         Parameters
@@ -551,14 +553,11 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         """
         if self.unnormalize_loss_inputs:
             target, prediction, _ = self.__unnormalize_for_loss_or_log__(target, prediction, None, attrs, attrs["r"])
-        losses = {}
-        for name, loss_func in self.segmentation_losses.items():
-            loss = loss_func(target, prediction)
-            if isinstance(loss, tuple):
-                # In case of the dice loss, the loss is a tuple of the form (dice, dice loss)
-                loss = loss[1]
-            losses[name] = loss
-        return self.total_segmentation_loss(**losses) * self.total_segmentation_loss_weight
+        loss = loss_func(target, prediction)
+        if isinstance(loss, tuple):
+            # In case of the dice loss, the loss is a tuple of the form (dice, dice loss)
+            loss = loss[1]
+        return loss
 
     def __compute_loss__(
         self,
@@ -605,7 +604,15 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             batch_size, slices = target_segmentation.shape[:2]
             target_segmentation = target_segmentation.reshape(batch_size * slices, *target_segmentation.shape[2:])
 
-        segmentation_loss = self.process_segmentation_loss(target_segmentation, predictions_segmentation, attrs)
+        losses = {}
+        for name, loss_func in self.segmentation_losses.items():
+            losses[name] = self.process_segmentation_loss(
+                target_segmentation,
+                predictions_segmentation,
+                attrs,
+                loss_func,
+            )
+        segmentation_loss = self.total_segmentation_loss(**losses)
 
         if self.use_reconstruction_module:
             if predictions_reconstruction_n2r is not None and not attrs["n2r_supervised"]:

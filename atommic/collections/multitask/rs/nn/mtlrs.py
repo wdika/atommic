@@ -1,6 +1,7 @@
 # coding=utf-8
 __author__ = "Dimitris Karkalousos"
-
+__editor__ = "Tim Paquaij"
+__editor__date__ = "2024-10-09"
 from typing import Dict, List, Tuple, Union
 
 import torch
@@ -48,6 +49,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
         self.reconstruction_module_accumulate_predictions = cfg_dict.get(
             "reconstruction_module_accumulate_predictions"
         )
+        self.segmentation_module_accumulate_predictions = cfg_dict.get("segmentation_module_accumulate_predictions")
         conv_dim = cfg_dict.get("reconstruction_module_conv_dim")
         reconstruction_module_params = {
             "num_cascades": self.reconstruction_module_num_cascades,
@@ -146,6 +148,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
             Tuple containing the predicted reconstruction and segmentation.
         """
         pred_reconstructions = []
+        pred_segmentations = []
         for cascade in self.rs_module:
             pred_reconstruction, pred_segmentation, hx = cascade(
                 y=y,
@@ -158,6 +161,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
             )
             pred_reconstructions.append(pred_reconstruction)
             init_reconstruction_pred = pred_reconstruction[-1][-1]
+            pred_segmentations.append(pred_segmentation)
 
             if self.task_adaption_type == "multi_task_learning":
                 hidden_states = [
@@ -190,7 +194,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
             init_reconstruction_pred = torch.view_as_real(init_reconstruction_pred)
 
-        return pred_reconstructions, pred_segmentation
+        return pred_reconstructions, pred_segmentations
 
     def process_reconstruction_loss(  # noqa: MC0001
         self,
@@ -284,25 +288,68 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
             return loss_func(t, p)
 
-        if self.accumulate_predictions:
+        if self.reconstruction_module_accumulate_predictions:
             rs_cascades_weights = torch.logspace(-1, 0, steps=len(prediction)).to(target.device)
             rs_cascades_loss = []
             for rs_cascade_pred in prediction:
                 cascades_weights = torch.logspace(-1, 0, steps=len(rs_cascade_pred)).to(target.device)
                 cascades_loss = []
                 for cascade_pred in rs_cascade_pred:
-                    time_steps_weights = torch.logspace(-1, 0, steps=self.time_steps).to(target.device)
+                    time_steps_weights = torch.logspace(-1, 0, steps=len(cascade_pred)).to(target.device)
                     time_steps_loss = [
                         compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
                         for time_step_pred in cascade_pred
                     ]
-                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / self.time_steps
-                    cascades_loss.append(cascade_loss)
-                rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / len(rs_cascade_pred)
+
+                cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / sum(
+                    time_steps_weights
+                )
+                cascades_loss.append(cascade_loss)
+                rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / sum(cascades_weights)
                 rs_cascades_loss.append(rs_cascade_loss)
-            loss = sum(x * w for x, w in zip(rs_cascades_loss, rs_cascades_weights)) / len(prediction)
+            loss = sum(x * w for x, w in zip(rs_cascades_loss, rs_cascades_weights)) / sum(rs_cascades_weights)
         else:
             # keep the last prediction of the last cascade of the last rs cascade
             prediction = prediction[-1][-1][-1]
             loss = compute_reconstruction_loss(target, prediction, sensitivity_maps)
+        return loss
+
+    def process_segmentation_loss(
+        self, target: torch.Tensor, prediction: torch.Tensor, attrs: Dict, loss_func: torch.nn.Module
+    ) -> Dict:
+        """Processes the segmentation loss.
+
+        Parameters
+        ----------
+        target : torch.Tensor
+            Target data of shape [batch_size, nr_classes, n_x, n_y].
+        prediction : torch.Tensor
+            Prediction of shape [batch_size, nr_classes, n_x, n_y].
+        attrs : Dict
+            Attributes of the data with pre normalization values.
+
+        Returns
+        -------
+        Dict
+            Dictionary containing the (multiple) loss values. For example, if the cross entropy loss and the dice loss
+            are used, the dictionary will contain the keys ``cross_entropy_loss``, ``dice_loss``, and
+            (combined) ``segmentation_loss``.
+        """
+        if self.unnormalize_loss_inputs:
+            target, prediction, _ = self.__unnormalize_for_loss_or_log__(target, prediction, None, attrs, attrs["r"])
+
+        if self.segmentation_module_accumulate_predictions:
+            rs_cascades_weights = torch.logspace(-1, 0, steps=len(prediction)).to(target.device)
+            rs_cascades_loss = []
+            for pred in prediction:
+                loss = loss_func(target, pred)
+                if isinstance(loss, tuple):
+                    loss = loss[1]
+                rs_cascades_loss.append(loss)
+            loss = sum(x * w for x, w in zip(rs_cascades_loss, rs_cascades_weights)) / sum(rs_cascades_weights)
+        else:
+            prediction = prediction[-1]
+            loss = loss_func(target, prediction)
+            if isinstance(loss, tuple):
+                loss = loss[1][0]
         return loss
