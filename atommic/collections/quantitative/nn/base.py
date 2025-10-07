@@ -29,7 +29,8 @@ from atommic.collections.quantitative.data.qmri_loader import AHEADqMRIDataset
 from atommic.collections.quantitative.parts.transforms import qMRIDataTransforms
 from atommic.collections.reconstruction.losses.na import NoiseAwareLoss
 from atommic.collections.reconstruction.losses.ssim import SSIMLoss
-from atommic.collections.reconstruction.metrics.reconstruction_metrics import mse, nmse, psnr, ssim
+from atommic.collections.reconstruction.losses.haarpsi import HaarPSILoss
+from atommic.collections.reconstruction.metrics.reconstruction_metrics import mse, nmse, psnr, ssim, haarpsi
 from atommic.collections.reconstruction.nn.base import DistributedMetricSum
 
 __all__ = ["BaseqMRIReconstructionModel", "SignalForwardModel"]
@@ -105,6 +106,10 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                     if self.ssdu:
                         raise ValueError("SSIM loss is not supported for SSDU.")
                     self.quantitative_losses[name] = SSIMLoss()
+                elif name == "haarpsi":
+                    if self.ssdu:
+                        raise ValueError("HaarPSI loss is not supported for SSDU.")
+                    self.quantitative_losses[name] = HaarPSILoss()
                 elif name == "mse":
                     self.quantitative_losses[name] = MSELoss()
                 elif name == "wasserstein":
@@ -165,6 +170,7 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         self.NMSE = DistributedMetricSum()
         self.SSIM = DistributedMetricSum()
         self.PSNR = DistributedMetricSum()
+        self.HAARPSI = DistributedMetricSum()
         self.TotExamples = DistributedMetricSum()
 
         # Set evaluation metrics dictionaries
@@ -172,26 +178,31 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         self.nmse_vals_reconstruction: Dict = defaultdict(dict)
         self.ssim_vals_reconstruction: Dict = defaultdict(dict)
         self.psnr_vals_reconstruction: Dict = defaultdict(dict)
+        self.haarpsi_vals_reconstruction: Dict = defaultdict(dict)
 
         self.mse_vals_R2star: Dict = defaultdict(dict)
         self.nmse_vals_R2star: Dict = defaultdict(dict)
         self.ssim_vals_R2star: Dict = defaultdict(dict)
         self.psnr_vals_R2star: Dict = defaultdict(dict)
+        self.haarpsi_vals_R2star: Dict = defaultdict(dict)
 
         self.mse_vals_S0: Dict = defaultdict(dict)
         self.nmse_vals_S0: Dict = defaultdict(dict)
         self.ssim_vals_S0: Dict = defaultdict(dict)
         self.psnr_vals_S0: Dict = defaultdict(dict)
+        self.haarpsi_vals_S0: Dict = defaultdict(dict)
 
         self.mse_vals_B0: Dict = defaultdict(dict)
         self.nmse_vals_B0: Dict = defaultdict(dict)
         self.ssim_vals_B0: Dict = defaultdict(dict)
         self.psnr_vals_B0: Dict = defaultdict(dict)
+        self.haarpsi_vals_B0: Dict = defaultdict(dict)
 
         self.mse_vals_phi: Dict = defaultdict(dict)
         self.nmse_vals_phi: Dict = defaultdict(dict)
         self.ssim_vals_phi: Dict = defaultdict(dict)
         self.psnr_vals_phi: Dict = defaultdict(dict)
+        self.haarpsi_vals_phi: Dict = defaultdict(dict)
 
     def __abs_output__(self, x: torch.Tensor) -> torch.Tensor:
         """Converts the input to absolute value."""
@@ -619,6 +630,20 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         anatomy_mask = torch.abs(anatomy_mask).to(target)
 
         if "ssim" in str(loss_func).lower():
+            return (
+                loss_func(
+                    target * anatomy_mask,
+                    prediction * anatomy_mask,
+                    data_range=torch.tensor(
+                        [max(torch.max(target * anatomy_mask).item(), torch.max(prediction * anatomy_mask).item())]
+                    )
+                    .unsqueeze(dim=0)
+                    .to(target),
+                )
+                * self.quantitative_parameters_regularization_factors[quantitative_map]
+            )
+
+        if "haarpsi" in str(loss_func).lower():
             return (
                 loss_func(
                     target * anatomy_mask,
@@ -1061,6 +1086,7 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 nmses = []
                 ssims = []
                 psnrs = []
+                haarpsis = []
                 for echo_time in range(output_target_reconstruction.shape[0]):
                     echo_output_target_reconstruction = output_target_reconstruction[echo_time, ...]
                     echo_output_prediction_reconstruction = output_prediction_reconstruction[echo_time, ...]
@@ -1105,16 +1131,30 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                             )
                         ).view(1)
                     )
+                    max_value = max(
+                        np.max(echo_output_target_reconstruction), np.max(echo_output_prediction_reconstruction)
+                    )
+                    haarpsis.append(
+                        torch.tensor(
+                            haarpsi(
+                                echo_output_target_reconstruction,
+                                echo_output_prediction_reconstruction,
+                                max_value,
+                            )
+                        ).view(1)
+                    )
 
                 self.mse_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(mses).mean()
                 self.nmse_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(nmses).mean()
                 self.ssim_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(ssims).mean()
                 self.psnr_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(psnrs).mean()
+                self.haarpsi_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(haarpsis).mean()
             else:
                 self.mse_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(0).view(1)
                 self.nmse_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(0).view(1)
                 self.ssim_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(0).view(1)
                 self.psnr_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(0).view(1)
+                self.haarpsi_vals_reconstruction[fname[_batch_idx_]][str(slice_num)] = torch.tensor(0).view(1)
 
             # compute metrics for quantitative maps
             output_target_R2star_map = output_target_R2star_map.numpy()
@@ -1144,6 +1184,12 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 psnr(output_target_R2star_map, output_prediction_R2star_map, maxval=max_value)
             ).view(1)
 
+            max_value = max(np.max(output_target_R2star_map), np.max(output_prediction_R2star_map))
+
+            self.haarpsi_vals_R2star[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
+                haarpsi(output_target_R2star_map, output_prediction_R2star_map, maxval=max_value)
+            ).view(1)
+
             self.mse_vals_S0[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 mse(output_target_S0_map, output_prediction_S0_map)
             ).view(1)
@@ -1160,6 +1206,12 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ).view(1)
             self.psnr_vals_S0[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 psnr(output_target_S0_map, output_prediction_S0_map, maxval=max_value)
+            ).view(1)
+
+            max_value = max(np.max(output_target_S0_map), np.max(output_prediction_S0_map))
+
+            self.haarpsi_vals_S0[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
+                haarpsi(output_target_S0_map, output_prediction_S0_map, maxval=max_value)
             ).view(1)
 
             self.mse_vals_B0[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
@@ -1180,17 +1232,33 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 psnr(output_target_B0_map, output_prediction_B0_map, maxval=max_value)
             ).view(1)
 
+            max_value = max(np.max(output_target_B0_map), np.max(output_prediction_B0_map))
+
+            self.haarpsi_vals_B0[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
+                haarpsi(output_target_B0_map, output_prediction_B0_map, maxval=max_value)
+            ).view(1)
+
             self.mse_vals_phi[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 mse(output_target_phi_map, output_prediction_phi_map)
             ).view(1)
             self.nmse_vals_phi[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 nmse(output_target_phi_map, output_prediction_phi_map)
             ).view(1)
+
+            max_value = max(np.max(output_target_phi_map), np.max(output_prediction_phi_map)) - min(
+                np.min(output_target_phi_map), np.min(output_prediction_phi_map)
+            )  # TODO: Should this be added it was missing?
             self.ssim_vals_phi[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 ssim(output_target_phi_map, output_prediction_phi_map, maxval=max_value)
             ).view(1)
             self.psnr_vals_phi[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
                 psnr(output_target_phi_map, output_prediction_phi_map, maxval=max_value)
+            ).view(1)
+
+            max_value = max(np.max(output_target_phi_map), np.max(output_prediction_phi_map))
+
+            self.haarpsi_vals_phi[fname[_batch_idx_]][str(slice_num)] = torch.tensor(
+                haarpsi(output_target_phi_map, output_prediction_phi_map, maxval=max_value)
             ).view(1)
 
     @staticmethod
@@ -1948,21 +2016,25 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         nmse_vals_R2star = defaultdict(dict)
         ssim_vals_R2star = defaultdict(dict)
         psnr_vals_R2star = defaultdict(dict)
+        haarpsi_vals_R2star = defaultdict(dict)
 
         mse_vals_S0 = defaultdict(dict)
         nmse_vals_S0 = defaultdict(dict)
         ssim_vals_S0 = defaultdict(dict)
         psnr_vals_S0 = defaultdict(dict)
+        haarpsi_vals_S0 = defaultdict(dict)
 
         mse_vals_B0 = defaultdict(dict)
         nmse_vals_B0 = defaultdict(dict)
         ssim_vals_B0 = defaultdict(dict)
         psnr_vals_B0 = defaultdict(dict)
+        haarpsi_vals_B0 = defaultdict(dict)
 
         mse_vals_phi = defaultdict(dict)
         nmse_vals_phi = defaultdict(dict)
         ssim_vals_phi = defaultdict(dict)
         psnr_vals_phi = defaultdict(dict)
+        haarpsi_vals_phi = defaultdict(dict)
 
         for k, v in self.mse_vals_R2star.items():
             mse_vals_R2star[k].update(v)
@@ -1972,6 +2044,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_R2star[k].update(v)
         for k, v in self.psnr_vals_R2star.items():
             psnr_vals_R2star[k].update(v)
+        for k, v in self.haarpsi_vals_R2star.items():
+            haarpsi_vals_R2star[k].update(v)
 
         for k, v in self.mse_vals_S0.items():
             mse_vals_S0[k].update(v)
@@ -1981,6 +2055,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_S0[k].update(v)
         for k, v in self.psnr_vals_S0.items():
             psnr_vals_S0[k].update(v)
+        for k, v in self.haarpsi_vals_S0.items():
+            haarpsi_vals_S0[k].update(v)
 
         for k, v in self.mse_vals_B0.items():
             mse_vals_B0[k].update(v)
@@ -1990,6 +2066,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_B0[k].update(v)
         for k, v in self.psnr_vals_B0.items():
             psnr_vals_B0[k].update(v)
+        for k, v in self.haarpsi_vals_B0.items():
+            haarpsi_vals_B0[k].update(v)
 
         for k, v in self.mse_vals_phi.items():
             mse_vals_phi[k].update(v)
@@ -1999,12 +2077,15 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_phi[k].update(v)
         for k, v in self.psnr_vals_phi.items():
             psnr_vals_phi[k].update(v)
+        for k, v in self.haarpsi_vals_phi.items():
+            haarpsi_vals_phi[k].update(v)
 
         if self.use_reconstruction_module:
             mse_vals_reconstruction = defaultdict(dict)
             nmse_vals_reconstruction = defaultdict(dict)
             ssim_vals_reconstruction = defaultdict(dict)
             psnr_vals_reconstruction = defaultdict(dict)
+            haarpsi_vals_reconstruction = defaultdict(dict)
 
             for k, v in self.mse_vals_reconstruction.items():
                 mse_vals_reconstruction[k].update(v)
@@ -2014,6 +2095,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 ssim_vals_reconstruction[k].update(v)
             for k, v in self.psnr_vals_reconstruction.items():
                 psnr_vals_reconstruction[k].update(v)
+            for k, v in self.haarpsi_vals_reconstruction.items():
+                haarpsi_vals_reconstruction[k].update(v)
 
         # apply means across image volumes
         metrics = {
@@ -2021,6 +2104,7 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             "NMSE": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "SSIM": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "PSNR": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
+            "HAARPSI": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
         }
         local_examples = 0
         for fname in mse_vals_R2star:
@@ -2037,6 +2121,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
             )
+            metrics["HAARPSI"]["R2star"] = metrics["HAARPSI"]["R2star"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_R2star[fname].items()])
+            )
 
             metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
@@ -2049,6 +2136,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             )
             metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
+            )
+            metrics["HAARPSI"]["S0"] = metrics["HAARPSI"]["S0"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_S0[fname].items()])
             )
 
             metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
@@ -2063,6 +2153,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
             )
+            metrics["HAARPSI"]["B0"] = metrics["HAARPSI"]["B0"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_B0[fname].items()])
+            )
 
             metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
@@ -2075,6 +2168,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             )
             metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
+            )
+            metrics["HAARPSI"]["phi"] = metrics["HAARPSI"]["phi"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_phi[fname].items()])
             )
 
             if self.use_reconstruction_module:
@@ -2090,33 +2186,41 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
                     torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
                 )
+                metrics["HAARPSI"]["reconstruction"] = metrics["HAARPSI"]["reconstruction"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in haarpsi_vals_reconstruction[fname].items()])
+                )
 
         # reduce across ddp via sum
         metrics["MSE"]["R2star"] = self.MSE(metrics["MSE"]["R2star"])
         metrics["NMSE"]["R2star"] = self.NMSE(metrics["NMSE"]["R2star"])
         metrics["SSIM"]["R2star"] = self.SSIM(metrics["SSIM"]["R2star"])
         metrics["PSNR"]["R2star"] = self.PSNR(metrics["PSNR"]["R2star"])
+        metrics["HAARPSI"]["R2star"] = self.HAARPSI(metrics["HAARPSI"]["R2star"])
 
         metrics["MSE"]["S0"] = self.MSE(metrics["MSE"]["S0"])
         metrics["NMSE"]["S0"] = self.NMSE(metrics["NMSE"]["S0"])
         metrics["SSIM"]["S0"] = self.SSIM(metrics["SSIM"]["S0"])
         metrics["PSNR"]["S0"] = self.PSNR(metrics["PSNR"]["S0"])
+        metrics["HAARPSI"]["S0"] = self.HAARPSI(metrics["HAARPSI"]["S0"])
 
         metrics["MSE"]["B0"] = self.MSE(metrics["MSE"]["B0"])
         metrics["NMSE"]["B0"] = self.NMSE(metrics["NMSE"]["B0"])
         metrics["SSIM"]["B0"] = self.SSIM(metrics["SSIM"]["B0"])
         metrics["PSNR"]["B0"] = self.PSNR(metrics["PSNR"]["B0"])
+        metrics["HAARPSI"]["B0"] = self.HAARPSI(metrics["HAARPSI"]["B0"])
 
         metrics["MSE"]["phi"] = self.MSE(metrics["MSE"]["phi"])
         metrics["NMSE"]["phi"] = self.NMSE(metrics["NMSE"]["phi"])
         metrics["SSIM"]["phi"] = self.SSIM(metrics["SSIM"]["phi"])
         metrics["PSNR"]["phi"] = self.PSNR(metrics["PSNR"]["phi"])
+        metrics["HAARPSI"]["phi"] = self.HAARPSI(metrics["HAARPSI"]["phi"])
 
         if self.use_reconstruction_module:
             metrics["MSE"]["reconstruction"] = self.MSE(metrics["MSE"]["reconstruction"])
             metrics["NMSE"]["reconstruction"] = self.NMSE(metrics["NMSE"]["reconstruction"])
             metrics["SSIM"]["reconstruction"] = self.SSIM(metrics["SSIM"]["reconstruction"])
             metrics["PSNR"]["reconstruction"] = self.PSNR(metrics["PSNR"]["reconstruction"])
+            metrics["HAARPSI"]["reconstruction"] = self.HAARPSI(metrics["HAARPSI"]["reconstruction"])
 
         tot_examples = self.TotExamples(torch.tensor(local_examples))
 
@@ -2147,21 +2251,25 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         nmse_vals_R2star = defaultdict(dict)
         ssim_vals_R2star = defaultdict(dict)
         psnr_vals_R2star = defaultdict(dict)
+        haarpsi_vals_R2star = defaultdict(dict)
 
         mse_vals_S0 = defaultdict(dict)
         nmse_vals_S0 = defaultdict(dict)
         ssim_vals_S0 = defaultdict(dict)
         psnr_vals_S0 = defaultdict(dict)
+        haarpsi_vals_S0 = defaultdict(dict)
 
         mse_vals_B0 = defaultdict(dict)
         nmse_vals_B0 = defaultdict(dict)
         ssim_vals_B0 = defaultdict(dict)
         psnr_vals_B0 = defaultdict(dict)
+        haarpsi_vals_B0 = defaultdict(dict)
 
         mse_vals_phi = defaultdict(dict)
         nmse_vals_phi = defaultdict(dict)
         ssim_vals_phi = defaultdict(dict)
         psnr_vals_phi = defaultdict(dict)
+        haarpsi_vals_phi = defaultdict(dict)
 
         for k, v in self.mse_vals_R2star.items():
             mse_vals_R2star[k].update(v)
@@ -2171,6 +2279,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_R2star[k].update(v)
         for k, v in self.psnr_vals_R2star.items():
             psnr_vals_R2star[k].update(v)
+        for k, v in self.haarpsi_vals_R2star.items():
+            haarpsi_vals_R2star[k].update(v)
 
         for k, v in self.mse_vals_S0.items():
             mse_vals_S0[k].update(v)
@@ -2180,6 +2290,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_S0[k].update(v)
         for k, v in self.psnr_vals_S0.items():
             psnr_vals_S0[k].update(v)
+        for k, v in self.haarpsi_vals_S0.items():
+            haarpsi_vals_S0[k].update(v)
 
         for k, v in self.mse_vals_B0.items():
             mse_vals_B0[k].update(v)
@@ -2189,6 +2301,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_B0[k].update(v)
         for k, v in self.psnr_vals_B0.items():
             psnr_vals_B0[k].update(v)
+        for k, v in self.haarpsi_vals_B0.items():
+            haarpsi_vals_B0[k].update(v)
 
         for k, v in self.mse_vals_phi.items():
             mse_vals_phi[k].update(v)
@@ -2198,12 +2312,15 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             ssim_vals_phi[k].update(v)
         for k, v in self.psnr_vals_phi.items():
             psnr_vals_phi[k].update(v)
+        for k, v in self.haarpsi_vals_phi.items():
+            haarpsi_vals_phi[k].update(v)
 
         if self.use_reconstruction_module:
             mse_vals_reconstruction = defaultdict(dict)
             nmse_vals_reconstruction = defaultdict(dict)
             ssim_vals_reconstruction = defaultdict(dict)
             psnr_vals_reconstruction = defaultdict(dict)
+            haarpsi_vals_reconstruction = defaultdict(dict)
 
             for k, v in self.mse_vals_reconstruction.items():
                 mse_vals_reconstruction[k].update(v)
@@ -2213,6 +2330,8 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 ssim_vals_reconstruction[k].update(v)
             for k, v in self.psnr_vals_reconstruction.items():
                 psnr_vals_reconstruction[k].update(v)
+            for k, v in self.haarpsi_vals_reconstruction.items():
+                haarpsi_vals_reconstruction[k].update(v)
 
         # apply means across image volumes
         metrics = {
@@ -2220,6 +2339,7 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             "NMSE": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "SSIM": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "PSNR": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
+            "HAARPSI": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
         }
         local_examples = 0
         for fname in mse_vals_R2star:
@@ -2236,6 +2356,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
             )
+            metrics["HAARPSI"]["R2star"] = metrics["HAARPSI"]["R2star"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_R2star[fname].items()])
+            )
 
             metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
@@ -2248,6 +2371,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             )
             metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
+            )
+            metrics["HAARPSI"]["S0"] = metrics["HAARPSI"]["S0"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_S0[fname].items()])
             )
 
             metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
@@ -2262,6 +2388,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
             )
+            metrics["HAARPSI"]["B0"] = metrics["HAARPSI"]["B0"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_B0[fname].items()])
+            )
 
             metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
@@ -2274,6 +2403,9 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             )
             metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
                 torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
+            )
+            metrics["HAARPSI"]["phi"] = metrics["HAARPSI"]["phi"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in haarpsi_vals_phi[fname].items()])
             )
 
             if self.use_reconstruction_module:
@@ -2289,33 +2421,41 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
                 metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
                     torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
                 )
+                metrics["HAARPSI"]["reconstruction"] = metrics["HAARPSI"]["reconstruction"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in haarpsi_vals_reconstruction[fname].items()])
+                )
 
         # reduce across ddp via sum
         metrics["MSE"]["R2star"] = self.MSE(metrics["MSE"]["R2star"])
         metrics["NMSE"]["R2star"] = self.NMSE(metrics["NMSE"]["R2star"])
         metrics["SSIM"]["R2star"] = self.SSIM(metrics["SSIM"]["R2star"])
         metrics["PSNR"]["R2star"] = self.PSNR(metrics["PSNR"]["R2star"])
+        metrics["HAARPSI"]["R2star"] = self.HAARPSI(metrics["HAARPSI"]["R2star"])
 
         metrics["MSE"]["S0"] = self.MSE(metrics["MSE"]["S0"])
         metrics["NMSE"]["S0"] = self.NMSE(metrics["NMSE"]["S0"])
         metrics["SSIM"]["S0"] = self.SSIM(metrics["SSIM"]["S0"])
         metrics["PSNR"]["S0"] = self.PSNR(metrics["PSNR"]["S0"])
+        metrics["HAARPSI"]["S0"] = self.HAARPSI(metrics["HAARPSI"]["S0"])
 
         metrics["MSE"]["B0"] = self.MSE(metrics["MSE"]["B0"])
         metrics["NMSE"]["B0"] = self.NMSE(metrics["NMSE"]["B0"])
         metrics["SSIM"]["B0"] = self.SSIM(metrics["SSIM"]["B0"])
         metrics["PSNR"]["B0"] = self.PSNR(metrics["PSNR"]["B0"])
+        metrics["HAARPSI"]["B0"] = self.HAARPSI(metrics["HAARPSI"]["B0"])
 
         metrics["MSE"]["phi"] = self.MSE(metrics["MSE"]["phi"])
         metrics["NMSE"]["phi"] = self.NMSE(metrics["NMSE"]["phi"])
         metrics["SSIM"]["phi"] = self.SSIM(metrics["SSIM"]["phi"])
         metrics["PSNR"]["phi"] = self.PSNR(metrics["PSNR"]["phi"])
+        metrics["HAARPSI"]["phi"] = self.HAARPSI(metrics["HAARPSI"]["phi"])
 
         if self.use_reconstruction_module:
             metrics["MSE"]["reconstruction"] = self.MSE(metrics["MSE"]["reconstruction"])
             metrics["NMSE"]["reconstruction"] = self.NMSE(metrics["NMSE"]["reconstruction"])
             metrics["SSIM"]["reconstruction"] = self.SSIM(metrics["SSIM"]["reconstruction"])
             metrics["PSNR"]["reconstruction"] = self.PSNR(metrics["PSNR"]["reconstruction"])
+            metrics["HAARPSI"]["reconstruction"] = self.HAARPSI(metrics["HAARPSI"]["reconstruction"])
 
         tot_examples = self.TotExamples(torch.tensor(local_examples))
 

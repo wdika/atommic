@@ -6,6 +6,9 @@ __author__ = "Dimitris Karkalousos"
 import numpy as np
 from runstats import Statistics
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+import functools
+import torch
+from atommic.collections.reconstruction.losses.haarpsi import haarpsi_func
 
 
 def mse(x: np.ndarray, y: np.ndarray, maxval: np.ndarray = None) -> float:  # pylint: disable=unused-argument
@@ -138,7 +141,7 @@ def ssim(x: np.ndarray, y: np.ndarray, maxval: np.ndarray = None) -> float:
     >>> datax = np.random.rand(3, 100, 100)
     >>> datay = datax * 0.5
     >>> ssim(datax, datay)
-    0.01833040155119426
+    0.6414419053906089
 
     .. note::
         x and y must be normalized to the same range, e.g. [0, 1].
@@ -163,7 +166,64 @@ def ssim(x: np.ndarray, y: np.ndarray, maxval: np.ndarray = None) -> float:
     return ssim_score / x.shape[0]
 
 
-METRIC_FUNCS = {"MSE": mse, "NMSE": nmse, "PSNR": psnr, "SSIM": ssim}
+def haarpsi(gt: np.ndarray, pred: np.ndarray, maxval: np.ndarray = None) -> float:
+    """Compute Haar Wavelet-Based Perceptual Similarity Metric
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Target image. It must be a 3D array, where the first dimension is the number of slices. In case of 2D images,
+        the first dimension should be 1.
+    y : np.ndarray
+        Predicted image. It must be a 3D array, where the first dimension is the number of slices. In case of 2D
+        images, the first dimension should be 1.
+    maxval : np.ndarray
+        Maximum value of the images. If None, it is computed from the images. If the images are normalized, maxval
+        should be 1.
+
+    Returns
+    -------
+    float
+        Haar Wavelet-Based Perceptual Similarity Metric.
+
+    Examples
+    --------
+    >>> from atommic.collections.reconstruction.metrics.reconstruction_metrics import haarpsi
+    >>> import numpy as np
+    >>> datax = np.random.rand(3, 100, 100)
+    >>> datay = datax * 0.5
+    >>> haarpsi(datax, datay)
+    0.65396311731067
+    """
+    if gt.ndim == 2:
+        gt = gt[np.newaxis, :, :]
+    if pred.ndim == 2:
+        pred = pred[np.newaxis, :, :]
+    if gt.ndim != 3:
+        raise ValueError("Unexpected number of dimensions in ground truth.")
+    if gt.ndim != pred.ndim:
+        raise ValueError("Ground truth dimensions does not match pred.")
+    reduction = 'mean'
+    scales = 3
+    subsample = True
+    c = 5
+    alpha = 4.2
+
+    maxval = (
+        max(np.max(gt), np.max(pred)) if maxval is None else maxval
+    )  # TODO: This implementation differs from SSIM since it raises an error when extracting the minimum value of the max, check how the ssim handles the maxval compaired to the haarpsi
+    _haarpsi = functools.partial(
+        haarpsi_func, scales=scales, subsample=subsample, c=c, alpha=alpha, data_range=maxval, reduction=reduction
+    )
+    __haarpsi = _haarpsi(torch.from_numpy(gt), torch.from_numpy(pred)).item()
+
+    return __haarpsi
+
+
+METRIC_FUNCS = dict(SSIM=ssim, HaarPSI=haarpsi, PSNR=psnr)
+
+
+METRIC_FUNCS = {"MSE": mse, "NMSE": nmse, "PSNR": psnr, "SSIM": ssim, 'HaarPSI': haarpsi}
 
 
 class ReconstructionMetrics:

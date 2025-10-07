@@ -23,6 +23,9 @@ The metrics are implemented in the following modules:
 * :func:`~atommic.collections.reconstruction.metrics.reconstruction_metrics.ssim`:
     Structural Similarity Index (SSIM) metric for ``reconstruction``, ``quantitative``, and ``multitask`` tasks.
 
+* :func:`~atommic.collections.reconstruction.metrics.reconstruction_metrics.haarpsi`:
+    Structural Similarity Index (SSIM) metric for ``reconstruction``, ``quantitative``, and ``multitask`` tasks.
+
 * :class:`~atommic.collections.reconstruction.metrics.reconstruction_metrics.ReconstructionMetrics`:
     Class that wraps all the metrics for ``reconstruction``, ``quantitative``, and ``multitask`` tasks.
 

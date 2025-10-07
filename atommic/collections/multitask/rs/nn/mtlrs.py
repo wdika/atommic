@@ -282,6 +282,16 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                     data_range=torch.tensor([max(torch.max(t).item(), torch.max(p).item())]).unsqueeze(dim=0).to(t),
                 )
 
+            if "haarpsi" in str(loss_func).lower():
+                p = torch.abs(p / torch.max(torch.abs(p)))
+                t = torch.abs(t / torch.max(torch.abs(t)))
+
+                return loss_func(
+                    p,
+                    t,
+                    data_range=torch.tensor([max(torch.max(t).item(), torch.max(p).item())]).unsqueeze(dim=0).to(t),
+                )
+
             return loss_func(t, p)
 
         if self.accumulate_predictions:

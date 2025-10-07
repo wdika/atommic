@@ -23,6 +23,19 @@ For ``reconstruction``,  ``qMRI`` and ``multitask`` tasks, the following losses 
     .. [Wang2004] Wang, Z., Bovik, A. C., Sheikh, H. R., & Simoncelli, E. P. (2004). Image quality assessment: from
         error visibility to structural similarity. IEEE transactions on image processing, 13(4), 600-612.
 
+* :class:`~atommic.collections.reconstruction.losses.HaarPSILoss`:
+    A loss function based on the Haar Wavelet-Based Perceptual Similarity (HaarPSI). It can be used for any task and it is based on
+    [Reisenhofer2018]_. Parameters are optimised for medical images based on [Karner2024]_.
+
+    References
+    ----------
+    .. [Reisenhofer2018] Reisenhofer, R., Bosse, S., Kutyniok, G., & Wiegand, T. (2018). A Haar wavelet-based perceptual similarity index for image 
+        quality assessment. Signal Processing: Image Communication, 61, 33-43.
+        
+    .. [Karner2024] Karner, C., Gröhl, J., Selby, I., Babar, J., Beckford, J., Else, T. R., ... & Breger, A. (2024). Parameter choices in HaarPSI 
+        for IQA with medical images. arXiv preprint arXiv:2410.24098.
+
+
 * :class:`~atommic.collections.reconstruction.losses.NoiseAwareLoss`:
     A custom loss function that is aware of the noise level in the data. It can be used for any task and it is based
     on [Oh2021]_.
