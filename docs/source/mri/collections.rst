@@ -251,6 +251,90 @@ Example configuration:
         normalize_segmentation_output: true
         unnormalize_loss_inputs: false
         unnormalize_log_outputs: false
+    
+Multi-Task Learning for MRI Reconstruction and Segmentation with attentionmodule
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Task Learning for MRI Reconstruction and Segmentation with attentionmodule
+(:class:`~atommic.collections.multitask.rs.nn.mtlrs.MTLRS`)
+
+Example configuration:
+
+.. code-block:: bash
+
+    model:
+        model_name: MTLRS
+        joint_reconstruction_segmentation_module_cascades: 5
+        task_adaption_type: multi_task_learning_softmax
+        use_reconstruction_module: true
+        reconstruction_module_recurrent_layer: IndRNN
+        reconstruction_module_conv_filters:
+            - 64
+            - 64
+            - 2
+        reconstruction_module_conv_kernels:
+            - 5
+            - 3
+            - 3
+        reconstruction_module_conv_dilations:
+            - 1
+            - 2
+            - 1
+        reconstruction_module_conv_bias:
+            - true
+            - true
+            - false
+        reconstruction_module_recurrent_filters:
+            - 64
+            - 64
+            - 0
+        reconstruction_module_recurrent_kernels:
+            - 1
+            - 1
+            - 0
+        reconstruction_module_recurrent_dilations:
+            - 1
+            - 1
+            - 0
+        reconstruction_module_recurrent_bias:
+            - true
+            - true
+            - false
+        reconstruction_module_depth: 2
+        reconstruction_module_time_steps: 8
+        reconstruction_module_conv_dim: 2
+        reconstruction_module_num_cascades: 1
+        reconstruction_module_dimensionality: 2
+        reconstruction_module_no_dc: true
+        reconstruction_module_keep_prediction: true
+        reconstruction_module_accumulate_predictions: true
+        segmentation_module: AttentionUNet
+        segmentation_module_input_channels: 1
+        segmentation_module_output_channels: 2
+        segmentation_module_channels: 64
+        segmentation_module_pooling_layers: 2
+        segmentation_module_dropout: 0.0
+        attention_module: SemanticGuidanceModule,
+        attention_module_kernel_size: 3,
+        attention_module_padding: 1,
+        attention_module_remove_background: true,
+        # task & dataset related parameters
+        coil_combination_method: SENSE
+        coil_dim: 1
+        complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
+        complex_data: true
+        consecutive_slices: 1
+        dimensionality: 2
+        estimate_coil_sensitivity_maps_with_nn: false
+        fft_centered: false
+        fft_normalization: backward
+        spatial_dims:
+            - -2
+            - -1
+        magnitude_input: true
+        normalization_type: minmax
+        normalize_segmentation_output: true
+        unnormalize_loss_inputs: false
+        unnormalize_log_outputs: false
 
 Reconstruction Segmentation method using UNet
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
