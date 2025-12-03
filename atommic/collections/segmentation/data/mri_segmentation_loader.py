@@ -561,10 +561,7 @@ class BraTS2023AdultGliomaSegmentationMRIDataset(Dataset):
             for fname in sorted(files):
                 metadata, num_slices = self._retrieve_metadata(fname)
 
-                # Specific to SKM-TEA segmentation dataset, we need to remove the first 50 and last 65 slices
-                self.examples += [
-                    (fname, slice_ind, metadata) for slice_ind in range(num_slices) if 50 < slice_ind < num_slices - 65
-                ]
+                self.examples += [(fname, slice_ind, metadata) for slice_ind in range(num_slices)]
 
             if dataset_cache.get(root) is None and use_dataset_cache:
                 dataset_cache[root] = self.examples
