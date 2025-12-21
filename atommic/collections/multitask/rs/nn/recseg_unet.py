@@ -55,9 +55,10 @@ class RecSegUNet(BaseMRIReconstructionSegmentationModel):
             drop_prob=cfg_dict.get("reconstruction_module_dropout", 0.0),
         )
 
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
         self.segmentation_module = Unet(
             in_chans=reconstruction_module_output_channels,
-            out_chans=cfg_dict.get("segmentation_module_output_channels", 1),
+            out_chans=self.segmentation_module_output_channels,
             chans=cfg_dict.get("segmentation_module_channels", 64),
             num_pool_layers=cfg_dict.get("segmentation_module_pooling_layers", 2),
             drop_prob=cfg_dict.get("segmentation_module_dropout", 0.0),

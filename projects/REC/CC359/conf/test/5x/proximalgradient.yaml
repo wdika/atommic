@@ -11,6 +11,7 @@ model:
   coil_combination_method: RSS
   normalization_type: minmax
   unnormalize_log_outputs: false
+  metric_computation_mode: per_slice  # per_slice: metrics are computed slice-wise and aggregated all together, per_volume: metrics are computed volume-wise and averaged by volume
   complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
   ssdu: false
   n2r: false

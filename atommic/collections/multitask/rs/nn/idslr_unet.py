@@ -45,7 +45,7 @@ class IDSLRUNet(BaseMRIReconstructionSegmentationModel):
         if self.input_channels == 0:
             raise ValueError("Segmentation module input channels cannot be 0.")
         reconstruction_out_chans = cfg_dict.get("reconstruction_module_output_channels", 2)
-        segmentation_out_chans = cfg_dict.get("segmentation_module_output_channels", 1)
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
         chans = cfg_dict.get("channels", 32)
         num_pools = cfg_dict.get("num_pools", 4)
         drop_prob = cfg_dict.get("drop_prob", 0.0)
@@ -78,7 +78,7 @@ class IDSLRUNet(BaseMRIReconstructionSegmentationModel):
 
         self.segmentation_module = Unet(
             in_chans=reconstruction_out_chans,
-            out_chans=segmentation_out_chans,
+            out_chans=self.segmentation_module_output_channels,
             chans=chans,
             num_pool_layers=num_pools,
             drop_prob=drop_prob,

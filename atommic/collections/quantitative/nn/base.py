@@ -38,7 +38,7 @@ __all__ = ["BaseqMRIReconstructionModel", "SignalForwardModel"]
 class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
     """Base class of all quantitative MRIReconstruction models."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):  # noqa: MC0001
         """Inits :class:`BaseqMRIReconstructionModel`.
 
         Parameters
@@ -139,6 +139,13 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
         # Refers to the type of the complex-valued data. It can be either "stacked" or "complex_abs" or
         # "complex_sqrt_abs".
         self.complex_valued_type = cfg_dict.get("complex_valued_type", "stacked")
+
+        self.metric_computation_mode = cfg_dict.get("metric_computation_mode", "per_slice")
+        if self.metric_computation_mode not in ["per_slice", "per_volume"]:
+            raise ValueError(
+                f"metric_computation_mode = {self.metric_computation_mode} is not supported. Please select "
+                "'per_slice' or 'per_volume'."
+            )
 
         # Initialize the module
         super().__init__(cfg=cfg, trainer=trainer)
@@ -2022,73 +2029,117 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             "SSIM": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "PSNR": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
         }
-        local_examples = 0
-        for fname in mse_vals_R2star:
-            local_examples += 1
-            metrics["MSE"]["R2star"] = metrics["MSE"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_R2star[fname].items()])
+
+        if self.metric_computation_mode == "per_volume":
+            local_examples = 0
+            for fname in mse_vals_R2star:
+                local_examples += 1
+                metrics["MSE"]["R2star"] = metrics["MSE"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_R2star[fname].items()])
+                )
+                metrics["NMSE"]["R2star"] = metrics["NMSE"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_R2star[fname].items()])
+                )
+                metrics["SSIM"]["R2star"] = metrics["SSIM"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_R2star[fname].items()])
+                )
+                metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
+                )
+
+                metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
+                )
+                metrics["NMSE"]["S0"] = metrics["NMSE"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_S0[fname].items()])
+                )
+                metrics["SSIM"]["S0"] = metrics["SSIM"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_S0[fname].items()])
+                )
+                metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
+                )
+
+                metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_B0[fname].items()])
+                )
+                metrics["NMSE"]["B0"] = metrics["NMSE"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_B0[fname].items()])
+                )
+                metrics["SSIM"]["B0"] = metrics["SSIM"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_B0[fname].items()])
+                )
+                metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
+                )
+
+                metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
+                )
+                metrics["NMSE"]["phi"] = metrics["NMSE"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_phi[fname].items()])
+                )
+                metrics["SSIM"]["phi"] = metrics["SSIM"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_phi[fname].items()])
+                )
+                metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
+                )
+
+                if self.use_reconstruction_module:
+                    metrics["MSE"]["reconstruction"] = metrics["MSE"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                    )
+                    metrics["NMSE"]["reconstruction"] = metrics["NMSE"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                    )
+                    metrics["SSIM"]["reconstruction"] = metrics["SSIM"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                    )
+                    metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                    )
+        else:  # per-slice
+            mse_vals_R2star = [v for x in mse_vals_R2star.values() for v in x.values()]
+            local_examples = len(mse_vals_R2star)
+            metrics["MSE"]["R2star"] = torch.sum(torch.stack(mse_vals_R2star))
+            metrics["NMSE"]["R2star"] = torch.sum(
+                torch.stack([v for x in nmse_vals_R2star.values() for v in x.values()])
             )
-            metrics["NMSE"]["R2star"] = metrics["NMSE"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_R2star[fname].items()])
+            metrics["SSIM"]["R2star"] = torch.sum(
+                torch.stack([v for x in ssim_vals_R2star.values() for v in x.values()])
             )
-            metrics["SSIM"]["R2star"] = metrics["SSIM"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_R2star[fname].items()])
-            )
-            metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
+            metrics["PSNR"]["R2star"] = torch.sum(
+                torch.stack([v for x in psnr_vals_R2star.values() for v in x.values()])
             )
 
-            metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
-            )
-            metrics["NMSE"]["S0"] = metrics["NMSE"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_S0[fname].items()])
-            )
-            metrics["SSIM"]["S0"] = metrics["SSIM"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_S0[fname].items()])
-            )
-            metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
-            )
+            metrics["MSE"]["S0"] = torch.sum(torch.stack([v for x in mse_vals_S0.values() for v in x.values()]))
+            metrics["NMSE"]["S0"] = torch.sum(torch.stack([v for x in nmse_vals_S0.values() for v in x.values()]))
+            metrics["SSIM"]["S0"] = torch.sum(torch.stack([v for x in ssim_vals_S0.values() for v in x.values()]))
+            metrics["PSNR"]["S0"] = torch.sum(torch.stack([v for x in psnr_vals_S0.values() for v in x.values()]))
 
-            metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_B0[fname].items()])
-            )
-            metrics["NMSE"]["B0"] = metrics["NMSE"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_B0[fname].items()])
-            )
-            metrics["SSIM"]["B0"] = metrics["SSIM"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_B0[fname].items()])
-            )
-            metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
-            )
+            metrics["MSE"]["B0"] = torch.sum(torch.stack([v for x in mse_vals_B0.values() for v in x.values()]))
+            metrics["NMSE"]["B0"] = torch.sum(torch.stack([v for x in nmse_vals_B0.values() for v in x.values()]))
+            metrics["SSIM"]["B0"] = torch.sum(torch.stack([v for x in ssim_vals_B0.values() for v in x.values()]))
+            metrics["PSNR"]["B0"] = torch.sum(torch.stack([v for x in psnr_vals_B0.values() for v in x.values()]))
 
-            metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
-            )
-            metrics["NMSE"]["phi"] = metrics["NMSE"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_phi[fname].items()])
-            )
-            metrics["SSIM"]["phi"] = metrics["SSIM"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_phi[fname].items()])
-            )
-            metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
-            )
+            metrics["MSE"]["phi"] = torch.sum(torch.stack([v for x in mse_vals_phi.values() for v in x.values()]))
+            metrics["NMSE"]["phi"] = torch.sum(torch.stack([v for x in nmse_vals_phi.values() for v in x.values()]))
+            metrics["SSIM"]["phi"] = torch.sum(torch.stack([v for x in ssim_vals_phi.values() for v in x.values()]))
+            metrics["PSNR"]["phi"] = torch.sum(torch.stack([v for x in psnr_vals_phi.values() for v in x.values()]))
 
             if self.use_reconstruction_module:
-                metrics["MSE"]["reconstruction"] = metrics["MSE"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                metrics["MSE"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in mse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["NMSE"]["reconstruction"] = metrics["NMSE"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                metrics["NMSE"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in nmse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["SSIM"]["reconstruction"] = metrics["SSIM"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                metrics["SSIM"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in ssim_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                metrics["PSNR"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in psnr_vals_reconstruction.values() for v in x.values()])
                 )
 
         # reduce across ddp via sum
@@ -2221,73 +2272,117 @@ class BaseqMRIReconstructionModel(atommic_common.nn.base.BaseMRIModel, ABC):
             "SSIM": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
             "PSNR": {"R2star": 0, "S0": 0, "B0": 0, "phi": 0, "reconstruction": 0},
         }
-        local_examples = 0
-        for fname in mse_vals_R2star:
-            local_examples += 1
-            metrics["MSE"]["R2star"] = metrics["MSE"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_R2star[fname].items()])
+
+        if self.metric_computation_mode == "per_volume":
+            local_examples = 0
+            for fname in mse_vals_R2star:
+                local_examples += 1
+                metrics["MSE"]["R2star"] = metrics["MSE"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_R2star[fname].items()])
+                )
+                metrics["NMSE"]["R2star"] = metrics["NMSE"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_R2star[fname].items()])
+                )
+                metrics["SSIM"]["R2star"] = metrics["SSIM"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_R2star[fname].items()])
+                )
+                metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
+                )
+
+                metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
+                )
+                metrics["NMSE"]["S0"] = metrics["NMSE"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_S0[fname].items()])
+                )
+                metrics["SSIM"]["S0"] = metrics["SSIM"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_S0[fname].items()])
+                )
+                metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
+                )
+
+                metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_B0[fname].items()])
+                )
+                metrics["NMSE"]["B0"] = metrics["NMSE"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_B0[fname].items()])
+                )
+                metrics["SSIM"]["B0"] = metrics["SSIM"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_B0[fname].items()])
+                )
+                metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
+                )
+
+                metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
+                )
+                metrics["NMSE"]["phi"] = metrics["NMSE"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals_phi[fname].items()])
+                )
+                metrics["SSIM"]["phi"] = metrics["SSIM"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals_phi[fname].items()])
+                )
+                metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
+                )
+
+                if self.use_reconstruction_module:
+                    metrics["MSE"]["reconstruction"] = metrics["MSE"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                    )
+                    metrics["NMSE"]["reconstruction"] = metrics["NMSE"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                    )
+                    metrics["SSIM"]["reconstruction"] = metrics["SSIM"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                    )
+                    metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                    )
+        else:  # per-slice
+            mse_vals_R2star = [v for x in mse_vals_R2star.values() for v in x.values()]
+            local_examples = len(mse_vals_R2star)
+            metrics["MSE"]["R2star"] = torch.sum(torch.stack(mse_vals_R2star))
+            metrics["NMSE"]["R2star"] = torch.sum(
+                torch.stack([v for x in nmse_vals_R2star.values() for v in x.values()])
             )
-            metrics["NMSE"]["R2star"] = metrics["NMSE"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_R2star[fname].items()])
+            metrics["SSIM"]["R2star"] = torch.sum(
+                torch.stack([v for x in ssim_vals_R2star.values() for v in x.values()])
             )
-            metrics["SSIM"]["R2star"] = metrics["SSIM"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_R2star[fname].items()])
-            )
-            metrics["PSNR"]["R2star"] = metrics["PSNR"]["R2star"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_R2star[fname].items()])
+            metrics["PSNR"]["R2star"] = torch.sum(
+                torch.stack([v for x in psnr_vals_R2star.values() for v in x.values()])
             )
 
-            metrics["MSE"]["S0"] = metrics["MSE"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_S0[fname].items()])
-            )
-            metrics["NMSE"]["S0"] = metrics["NMSE"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_S0[fname].items()])
-            )
-            metrics["SSIM"]["S0"] = metrics["SSIM"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_S0[fname].items()])
-            )
-            metrics["PSNR"]["S0"] = metrics["PSNR"]["S0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_S0[fname].items()])
-            )
+            metrics["MSE"]["S0"] = torch.sum(torch.stack([v for x in mse_vals_S0.values() for v in x.values()]))
+            metrics["NMSE"]["S0"] = torch.sum(torch.stack([v for x in nmse_vals_S0.values() for v in x.values()]))
+            metrics["SSIM"]["S0"] = torch.sum(torch.stack([v for x in ssim_vals_S0.values() for v in x.values()]))
+            metrics["PSNR"]["S0"] = torch.sum(torch.stack([v for x in psnr_vals_S0.values() for v in x.values()]))
 
-            metrics["MSE"]["B0"] = metrics["MSE"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_B0[fname].items()])
-            )
-            metrics["NMSE"]["B0"] = metrics["NMSE"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_B0[fname].items()])
-            )
-            metrics["SSIM"]["B0"] = metrics["SSIM"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_B0[fname].items()])
-            )
-            metrics["PSNR"]["B0"] = metrics["PSNR"]["B0"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_B0[fname].items()])
-            )
+            metrics["MSE"]["B0"] = torch.sum(torch.stack([v for x in mse_vals_B0.values() for v in x.values()]))
+            metrics["NMSE"]["B0"] = torch.sum(torch.stack([v for x in nmse_vals_B0.values() for v in x.values()]))
+            metrics["SSIM"]["B0"] = torch.sum(torch.stack([v for x in ssim_vals_B0.values() for v in x.values()]))
+            metrics["PSNR"]["B0"] = torch.sum(torch.stack([v for x in psnr_vals_B0.values() for v in x.values()]))
 
-            metrics["MSE"]["phi"] = metrics["MSE"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in mse_vals_phi[fname].items()])
-            )
-            metrics["NMSE"]["phi"] = metrics["NMSE"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals_phi[fname].items()])
-            )
-            metrics["SSIM"]["phi"] = metrics["SSIM"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals_phi[fname].items()])
-            )
-            metrics["PSNR"]["phi"] = metrics["PSNR"]["phi"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals_phi[fname].items()])
-            )
+            metrics["MSE"]["phi"] = torch.sum(torch.stack([v for x in mse_vals_phi.values() for v in x.values()]))
+            metrics["NMSE"]["phi"] = torch.sum(torch.stack([v for x in nmse_vals_phi.values() for v in x.values()]))
+            metrics["SSIM"]["phi"] = torch.sum(torch.stack([v for x in ssim_vals_phi.values() for v in x.values()]))
+            metrics["PSNR"]["phi"] = torch.sum(torch.stack([v for x in psnr_vals_phi.values() for v in x.values()]))
 
             if self.use_reconstruction_module:
-                metrics["MSE"]["reconstruction"] = metrics["MSE"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                metrics["MSE"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in mse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["NMSE"]["reconstruction"] = metrics["NMSE"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                metrics["NMSE"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in nmse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["SSIM"]["reconstruction"] = metrics["SSIM"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                metrics["SSIM"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in ssim_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics["PSNR"]["reconstruction"] = metrics["PSNR"]["reconstruction"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                metrics["PSNR"]["reconstruction"] = torch.sum(
+                    torch.stack([v for x in psnr_vals_reconstruction.values() for v in x.values()])
                 )
 
         # reduce across ddp via sum

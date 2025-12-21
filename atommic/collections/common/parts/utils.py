@@ -17,6 +17,7 @@ __all__ = [
     "center_crop",
     "center_crop_to_smallest",
     "check_stacked_complex",
+    "check_one_hot",
     "coil_combination_method",
     "complex_abs",
     "complex_abs_sq",
@@ -352,6 +353,56 @@ def check_stacked_complex(x: torch.Tensor) -> torch.Tensor:
     torch.Size([3])
     """
     return torch.view_as_complex(x) if x.shape[-1] == 2 else x
+
+
+def check_one_hot(x: torch.Tensor) -> bool:
+    """
+    Check if tensor is one_hot encoded and returns a boolean.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Tensor to check with atleast two dimensions.
+
+    Returns
+    -------
+    Boolean
+        True or False
+
+    Examples
+    --------
+    >>> from atommic.collections.common.parts.utils import check_one_hot
+    >>> import torch
+    >>> data = torch.Tensor([[1,0], [0,1]])
+    >>> check_one_hot(data)
+    True
+    >>> data = torch.Tensor([[1,1], [0,1]])
+    >>> check_one_hot(data)
+    False
+    >>> data = torch.Tensor([[1,2], [0,0]])
+    >>> check_one_hot(data)
+    False
+    >>> data = torch.Tensor([[1,1], [0,0]])
+    >>> check_one_hot(data)
+    True
+    """
+    # Ensure tensor is at least 2D
+    x = x if x.ndimension() >= 2 else x.unsqueeze(0)
+
+    for dim in range(x.ndimension()):
+        # Permute the candidate class dimension to the last position
+        permuted_tensor = x.permute(*[i for i in range(x.ndimension()) if i != dim], dim)
+
+        # Check conditions for one-hot encoding:
+        # 1. All values must be either 0 or 1
+        is_binary = torch.all((permuted_tensor == 0) | (permuted_tensor == 1))
+
+        # 2. Exactly one '1' per row along the last axis
+        has_single_one = torch.all(torch.sum(permuted_tensor, dim=-1) == 1)
+
+        if is_binary and has_single_one:
+            return True
+    return False
 
 
 def coil_combination_method(

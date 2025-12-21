@@ -183,15 +183,21 @@ class ReconstructionMetrics:
     'MSE = 0.1704 +/- 0.01072 NMSE = 0.5001 +/- 0.01636 PSNR = 7.67 +/- 0.319 SSIM = 0.01833 +/- 0.03527\n'
     """
 
-    def __init__(self, metric_funcs):
+    def __init__(self, metric_funcs, ddof: int = 1):
         """Inits :class:`ReconstructionMetrics`.
 
         Parameters
         ----------
         metric_funcs : dict
             A dict where the keys are metric names and the values are Python functions for evaluating that metric.
+        ddof : int
+            Degrees of freedom, parsing direct behaviour of python runstats native library, with 1 indicating that we
+            compute metrics on a subset of the data (e.g. per-slice) and 0 indicating that we compute metrics on all
+            data points (e.g. volumetrically).
+            Default is ``1``.
         """
         self.metrics_scores = {metric: Statistics() for metric in metric_funcs}
+        self.ddof = ddof
 
     def push(self, x, y, maxval=None):
         """Pushes a new batch of metrics to the running statistics.
@@ -222,7 +228,7 @@ class ReconstructionMetrics:
 
     def stddevs(self):
         """Standard deviation of the means of each metric."""
-        return {metric: stat.stddev() for metric, stat in self.metrics_scores.items()}
+        return {metric: stat.stddev(ddof=self.ddof) for metric, stat in self.metrics_scores.items()}
 
     def __repr__(self):
         """Representation of the metrics."""

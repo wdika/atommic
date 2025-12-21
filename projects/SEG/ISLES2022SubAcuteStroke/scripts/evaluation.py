@@ -8,7 +8,7 @@ import os
 import warnings
 from pathlib import Path
 
-import cc3d
+import cc3d  # pylint: disable=import-error
 import h5py
 import nibabel as nib
 import numpy as np
@@ -136,12 +136,8 @@ def compute_absolute_lesion_difference(
     ground_truth = np.asarray(ground_truth).astype(np.bool_)
     prediction = np.asarray(prediction).astype(np.bool_)
 
-    _, ground_truth_numb_lesion = cc3d.connected_components(  # pylint: disable=c-extension-no-member
-        ground_truth, connectivity=connectivity, return_N=True
-    )
-    _, prediction_numb_lesion = cc3d.connected_components(  # pylint: disable=c-extension-no-member
-        prediction, connectivity=connectivity, return_N=True
-    )
+    _, ground_truth_numb_lesion = cc3d.connected_components(ground_truth, connectivity=connectivity, return_N=True)
+    _, prediction_numb_lesion = cc3d.connected_components(prediction, connectivity=connectivity, return_N=True)
     abs_les_diff = abs(ground_truth_numb_lesion - prediction_numb_lesion)
 
     return abs_les_diff
@@ -189,16 +185,12 @@ def compute_lesion_f1_score(
 
     # Check if ground-truth connected-components are detected or missed (tp and fn respectively).
     intersection = np.logical_and(ground_truth, prediction)
-    labeled_ground_truth, N = cc3d.connected_components(  # pylint: disable=c-extension-no-member
-        ground_truth, connectivity=connectivity, return_N=True
-    )
+    labeled_ground_truth, N = cc3d.connected_components(ground_truth, connectivity=connectivity, return_N=True)
 
     # Iterate over ground_truth clusters to find tp and fn.
     # tp and fn are only computed if the ground-truth is not empty.
     if N > 0:
-        for _, binary_cluster_image in cc3d.each(  # pylint: disable=c-extension-no-member
-            labeled_ground_truth, binary=True, in_place=True
-        ):
+        for _, binary_cluster_image in cc3d.each(labeled_ground_truth, binary=True, in_place=True):
             if np.logical_and(binary_cluster_image, intersection).any():
                 tp += 1
             else:
@@ -206,21 +198,15 @@ def compute_lesion_f1_score(
 
     # iterate over prediction clusters to find fp.
     # fp are only computed if the prediction image is not empty.
-    labeled_prediction, N = cc3d.connected_components(  # pylint: disable=c-extension-no-member
-        prediction, connectivity=connectivity, return_N=True
-    )
+    labeled_prediction, N = cc3d.connected_components(prediction, connectivity=connectivity, return_N=True)
     if N > 0:
-        for _, binary_cluster_image in cc3d.each(  # pylint: disable=c-extension-no-member
-            labeled_prediction, binary=True, in_place=True
-        ):
+        for _, binary_cluster_image in cc3d.each(labeled_prediction, binary=True, in_place=True):
             if not np.logical_and(binary_cluster_image, ground_truth).any():
                 fp += 1
 
     # Define case when both images are empty.
     if tp + fp + fn == 0:
-        _, N = cc3d.connected_components(  # pylint: disable=c-extension-no-member
-            ground_truth, connectivity=connectivity, return_N=True
-        )
+        _, N = cc3d.connected_components(ground_truth, connectivity=connectivity, return_N=True)
         if N == 0:
             f1_score = empty_value
     else:

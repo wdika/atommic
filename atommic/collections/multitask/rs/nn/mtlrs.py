@@ -284,19 +284,24 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
             return loss_func(t, p)
 
-        if self.accumulate_predictions:
+        if self.reconstruction_module_accumulate_predictions:
             rs_cascades_weights = torch.logspace(-1, 0, steps=len(prediction)).to(target.device)
             rs_cascades_loss = []
             for rs_cascade_pred in prediction:
                 cascades_weights = torch.logspace(-1, 0, steps=len(rs_cascade_pred)).to(target.device)
                 cascades_loss = []
                 for cascade_pred in rs_cascade_pred:
-                    time_steps_weights = torch.logspace(-1, 0, steps=self.time_steps).to(target.device)
+                    time_steps_weights = torch.logspace(-1, 0, steps=self.reconstruction_module_time_steps).to(
+                        target.device
+                    )
                     time_steps_loss = [
                         compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
                         for time_step_pred in cascade_pred
                     ]
-                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / self.time_steps
+                    cascade_loss = (
+                        sum(x * w for x, w in zip(time_steps_loss, time_steps_weights))
+                        / self.reconstruction_module_time_steps
+                    )
                     cascades_loss.append(cascade_loss)
                 rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / len(rs_cascade_pred)
                 rs_cascades_loss.append(rs_cascade_loss)
