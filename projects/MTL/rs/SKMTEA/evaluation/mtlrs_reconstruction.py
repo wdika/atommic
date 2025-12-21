@@ -31,7 +31,7 @@ def main(args):
 
     evaluation_type = args.evaluation_type
 
-    scores = ReconstructionMetrics(METRIC_FUNCS)
+    scores = ReconstructionMetrics(METRIC_FUNCS, ddof=1 if evaluation_type == "per_slice" else 0)
     for target in tqdm(targets):
         reconstruction = h5py.File(Path(args.reconstructions_dir) / str(target).rsplit("/", maxsplit=1)[-1], "r")[
             "reconstruction"

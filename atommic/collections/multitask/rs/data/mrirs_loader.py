@@ -486,6 +486,7 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             segmentation_labels = np.fft.fftshift(np.fft.fft2(segmentation_labels))
             segmentation_labels = segmentation_labels[:, 48:-48, 40:-40]
             segmentation_labels = np.fft.ifft2(np.fft.ifftshift(segmentation_labels)).real
+            segmentation_labels = np.where(segmentation_labels > 0.5, 1.0, 0.0)  # Make sure the labels are binary.
 
             imspace = np.empty([])
 

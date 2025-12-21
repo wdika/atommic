@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import h5py
-import ismrmrd
+import ismrmrd  # pylint: disable=import-error
 import numpy as np
 from tqdm import tqdm
 
@@ -47,8 +47,8 @@ def ismrmrd_to_np(filename):
 
     for i in tqdm(range(num_acq)):
         acq = dataset.read_acquisition(i)
-        i_ky = acq.idx.kspace_encode_step_1  # pylint: disable=no-member
-        i_slice = acq.idx.slice  # pylint: disable=no-member
+        i_ky = acq.idx.kspace_encode_step_1
+        i_slice = acq.idx.slice
         data = np.matmul(opt_mat.T, acq.data)
         kspace[:, i_slice, i_ky, :] = data * ((-1) ** i_slice)
 

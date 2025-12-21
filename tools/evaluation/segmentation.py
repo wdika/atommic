@@ -48,8 +48,9 @@ def main(args):  # noqa: MC0001
     crop_size = args.crop_size
     dataset_format = args.dataset_format
     evaluation_type = args.evaluation_type
+    exclude_prediction_background = args.exclude_prediction_background
 
-    scores = SegmentationMetrics(METRIC_FUNCS)
+    scores = SegmentationMetrics(METRIC_FUNCS, ddof=1 if evaluation_type == "per_slice" else 0)
     for target in tqdm(targets):
         fname = str(target).rsplit("/", maxsplit=1)[-1]
         if ".h5" in fname:
@@ -117,6 +118,9 @@ def main(args):  # noqa: MC0001
             target = center_crop(target, crop_size)
             predictions = center_crop(predictions, crop_size)
 
+        if exclude_prediction_background:
+            predictions = predictions[:, 1:, ...]
+
         if evaluation_type == "per_slice":
             target = np.expand_dims(target, axis=1)
             predictions = np.expand_dims(predictions, axis=1)
@@ -149,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_type", choices=["per_slice", "per_volume"], default="per_slice")
     parser.add_argument("--sum_classes_method", choices=["sum", "argmax", "none"], default="none")
     parser.add_argument("--flatten_dice", action="store_true")
+    parser.add_argument("--exclude_prediction_background", action="store_true")
     parser.add_argument("--fill_target_path", action="store_true")
     parser.add_argument("--fill_pred_path", action="store_true")
     args = parser.parse_args()

@@ -45,6 +45,8 @@ class AggregatorLoss(Loss):
             Number of losses to be summed.
         weights : List[float]
             Weights to be applied to each loss. If None, all losses are weighted equally.
+        reduction : str
+            Reduction method to be applied to the aggregated loss.
         """
         super().__init__()
         self._num_losses = num_inputs

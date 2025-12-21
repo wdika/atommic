@@ -12,8 +12,7 @@ from scipy.spatial.distance import directed_hausdorff
 from torchmetrics import functional as F
 
 from atommic.collections.segmentation.losses import Dice
-from atommic.collections.segmentation.losses.dice import one_hot
-from atommic.collections.segmentation.losses.utils import do_metric_reduction
+from atommic.collections.segmentation.losses.utils import do_metric_reduction, one_hot
 
 
 def asd(x, y, voxelspacing=None, connectivity=1):
@@ -57,10 +56,14 @@ def binary_cross_entropy_with_logits_metric(x: torch.Tensor, y: torch.Tensor, re
         Ground Truth Tensor.
     y : torch.Tensor
         Prediction Tensor.
-    reduction : str
-        Specifies the reduction to apply to the output: ``none`` | ``mean`` | ``sum``.
-        ``none``: no reduction will be applied. ``mean``: the sum of the output will be divided by the number of
-        elements. ``sum``: the output will be summed. Default is``mean``.
+    reduction : Union[str, None]
+        Specifies the reduction to apply:
+        ``none``: no reduction will be applied.
+        ``mean``: reduction with averaging over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        ``sum``: reduction with summing over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        Default is ``mean``.
 
     Returns
     -------
@@ -99,10 +102,11 @@ def dice_metric(
     squared_y: bool = False,
     jaccard: bool = False,
     flatten: bool = False,
-    reduction: Union[str, None] = "mean_batch",
+    reduction: Union[str, None] = "mean",
     smooth_nr: float = 1e-5,
     smooth_dr: float = 1e-5,
     batch: bool = True,
+    num_segmentation_classes: int = None,
 ) -> float:
     """Compute Dice Score.
 
@@ -129,9 +133,13 @@ def dice_metric(
     flatten : bool
         Whether to flatten input data. Default is ``False``.
     reduction : Union[str, None]
-        Specifies the reduction to apply to the output: ``none`` | ``mean`` | ``sum``.
-        ``none``: no reduction will be applied. ``mean``: the sum of the output will be divided by the number of
-        elements. ``sum``: the output will be summed. Default is ``mean``.
+        Specifies the reduction to apply:
+        ``none``: no reduction will be applied.
+        ``mean``: reduction with averaging over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        ``sum``: reduction with summing over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        Default is ``mean``.
     smooth_nr : float
         A small constant added to the numerator to avoid ``nan`` when all items are 0.
     smooth_dr : float
@@ -140,6 +148,9 @@ def dice_metric(
         If True, compute Dice loss for each batch and return a tensor with shape (batch_size,).
         If False, compute Dice loss for the whole batch and return a tensor with shape (1,).
         Default is ``True``.
+    num_segmentation_classes: int
+        Total number of segmentation classes. Default is ``None``.
+
     Returns
     -------
     float
@@ -167,7 +178,12 @@ def dice_metric(
         smooth_nr=smooth_nr,
         smooth_dr=smooth_dr,
         batch=batch,
+        num_segmentation_classes=num_segmentation_classes,
     )
+    if isinstance(x, np.ndarray):
+        x = torch.from_numpy(x)
+    if isinstance(y, np.ndarray):
+        y = torch.from_numpy(y)
     dice_score, _ = custom_dice(x, y)
     return dice_score.item()
 
@@ -192,14 +208,15 @@ def f1_per_class_metric(
         Beta value for F1 score. Default is ``1e-5``.
     average : str
         Defines the averaging performed in the binary case:
-        ``micro`` calculates metrics globally,
+        ``mean`` averages metrics,
         ``macro`` calculates metrics for each label, and finds their unweighted mean,
+        ``micro`` calculates metrics globally,
         ``weighted`` calculates metrics for each label, and finds their average, weighted by support
         (the number of true instances for each label),
         ``none`` returns the score for each class.
-        Default is ``none``.
+        Default is ``mean``.
     mdmc_average : str
-        Defines the averaging performed in the multiclass case:
+        Defines the averaging performed in the exclusive case:
         ``samplewise`` calculates metrics for each sample, and finds their unweighted mean,
         ``global`` calculates metrics globally, across all samples.
         Default is ``samplewise``.
@@ -349,7 +366,9 @@ def iou_metric(
     y: torch.Tensor,
     include_background: bool = True,
     ignore_empty: bool = True,
-    reduction: Union[str, None] = "mean",
+    reduction: str = "mean",
+    batch: bool = True,
+    num_segmentation_classes: int = None,
 ) -> float:
     """Compute Intersection over Union.
 
@@ -363,11 +382,20 @@ def iou_metric(
         If True, include background in the computation. Default is ``True``.
     ignore_empty : bool
         If True, ignore empty slices. Default is ``True``.
-    reduction : str or None
-        If None, return a tensor with shape (batch_size,).
-        If ``mean``, return the mean of the tensor.
-        If ``sum``, return the sum of the tensor.
+    reduction : Union[str, None]
+        Specifies the reduction to apply:
+        ``none``: no reduction will be applied.
+        ``mean``: reduction with averaging over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        ``sum``: reduction with summing over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
         Default is ``mean``.
+    batch : bool
+        If True, compute Dice loss for each batch and return a tensor with shape (batch_size,).
+        If False, compute Dice loss for the whole batch and return a tensor with shape (1,).
+        Default is ``True``.
+    num_segmentation_classes: int
+        Total number of segmentation classes. Default is ``None``.
 
     Returns
     -------
@@ -388,6 +416,13 @@ def iou_metric(
     if isinstance(y, np.ndarray):
         y = torch.from_numpy(y)
 
+    if x.dim() == 3:
+        # if x.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        x = x.unsqueeze(0) if x.shape[-3] == num_segmentation_classes else x.unsqueeze(1)
+    if y.dim() == 3:
+        # if y.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        y = y.unsqueeze(0) if y.shape[-3] == num_segmentation_classes else y.unsqueeze(1)
+
     if not include_background:
         if y.dim() == 1:
             warnings.warn("single channel prediction, `include_background=False` ignored.")
@@ -401,17 +436,17 @@ def iou_metric(
 
     # reducing only spatial dimensions (not batch nor channels)
     n_len = len(y.shape)
-    reduce_axis = list(range(2, n_len))
+    reduce_axis = torch.arange(2, n_len).tolist()
+    if batch:
+        # reducing spatial dimensions and batch
+        reduce_axis = [0] + reduce_axis
     intersection = torch.sum(x * y, dim=reduce_axis)
-
     y_o = torch.sum(x, reduce_axis)
     y_y_o = torch.sum(y, dim=reduce_axis)
     union = y_o + y_y_o - intersection
-
     _max = 1.0 if not ignore_empty else float("nan")
-    iou_score = torch.where(union > 0, (intersection) / union, torch.tensor(_max, device=y_o.device))
-    iou_score, _ = do_metric_reduction(iou_score, reduction=reduction)  # type: ignore
-
+    iou_score = torch.where(union > 0, intersection / union, torch.tensor(_max, device=y_o.device))
+    iou_score, _ = do_metric_reduction(iou_score, reduction=reduction)
     return iou_score.item()
 
 
@@ -421,7 +456,9 @@ def precision_metric(
     include_background: bool = True,
     average="none",
     mdmc_average="samplewise",
-    reduction: Union[str, None] = "mean_batch",
+    reduction: str = "mean",
+    to_one_hot: bool = False,
+    num_segmentation_classes: int = None,
 ) -> float:
     """Compute Precision Score.
 
@@ -443,11 +480,18 @@ def precision_metric(
         If ``global``, return the mean of the tensor.
         If ``none``, return the sum of the tensor.
         Default is ``samplewise``.
-    reduction : str or None
-        If None, return a tensor with shape (batch_size,).
-        If ``mean``, return the mean of the tensor.
-        If ``sum``, return the sum of the tensor.
-        Default is ``mean_batch``.
+    reduction : Union[str, None]
+        Specifies the reduction to apply:
+        ``none``: no reduction will be applied.
+        ``mean``: reduction with averaging over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        ``sum``: reduction with summing over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        Default is ``mean``.
+    to_one_hot : bool
+        If True, convert inputs to one-hot encoding. Default is ``False``.
+    num_segmentation_classes: int
+        Total number of segmentation classes. Default is ``None``.
 
     Returns
     -------
@@ -468,6 +512,13 @@ def precision_metric(
     if isinstance(y, np.ndarray):
         y = torch.from_numpy(y)
 
+    if x.dim() == 3:
+        # if x.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        x = x.unsqueeze(0) if x.shape[-3] == num_segmentation_classes else x.unsqueeze(1)
+    if y.dim() == 3:
+        # if y.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        y = y.unsqueeze(0) if y.shape[-3] == num_segmentation_classes else y.unsqueeze(1)
+
     if not include_background:
         if y.dim() == 1:
             warnings.warn("single channel prediction, `include_background=False` ignored.")
@@ -486,14 +537,14 @@ def precision_metric(
     pr = []
     for i in range(y.shape[1]):
         precision_score = F.precision(
-            one_hot(y[:, i].unsqueeze(1), num_classes=2),
-            one_hot(x[:, i].unsqueeze(1), num_classes=2),
+            one_hot(y[:, i].unsqueeze(1), num_classes=2) if to_one_hot else y,
+            one_hot(x[:, i].unsqueeze(1), num_classes=2) if to_one_hot else x,
             task="binary",
             average=average,
             multidim_average=mdmc_average,
             num_classes=y.shape[1],
         )
-        precision_score, _ = do_metric_reduction(precision_score, reduction=reduction)  # type: ignore
+        precision_score, _ = do_metric_reduction(precision_score, reduction=reduction)
         pr.append(precision_score.item())
     return torch.mean(torch.tensor(pr)).item()
 
@@ -504,7 +555,9 @@ def recall_metric(
     include_background: bool = True,
     average="none",
     mdmc_average="samplewise",
-    reduction: Union[str, None] = "mean_batch",
+    reduction: str = "mean",
+    to_one_hot: bool = False,
+    num_segmentation_classes: int = None,
 ) -> float:
     """Compute Recall Score.
 
@@ -526,11 +579,18 @@ def recall_metric(
         If ``global``, return the mean of the tensor.
         If ``none``, return the sum of the tensor.
         Default is ``samplewise``.
-    reduction : str or None
-        If None, return a tensor with shape (batch_size,).
-        If ``mean``, return the mean of the tensor.
-        If ``sum``, return the sum of the tensor.
-        Default is ``mean_batch``.
+    reduction : Union[str, None]
+        Specifies the reduction to apply:
+        ``none``: no reduction will be applied.
+        ``mean``: reduction with averaging over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        ``sum``: reduction with summing over both batch and channel dimensions if input is 2D, or batch dimension
+        only if input is 1D
+        Default is ``mean``.
+    to_one_hot : bool
+        If True, convert inputs to one-hot encoding. Default is ``False``.
+    num_segmentation_classes: int
+        Total number of segmentation classes. Default is ``None``.
 
     Returns
     -------
@@ -551,6 +611,13 @@ def recall_metric(
     if isinstance(y, np.ndarray):
         y = torch.from_numpy(y)
 
+    if x.dim() == 3:
+        # if x.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        x = x.unsqueeze(0) if x.shape[-3] == num_segmentation_classes else x.unsqueeze(1)
+    if y.dim() == 3:
+        # if y.shape[-3] == num_segmentation_classes then we need dummy batch dim, else dummy channel dim
+        y = y.unsqueeze(0) if y.shape[-3] == num_segmentation_classes else y.unsqueeze(1)
+
     if not include_background:
         if y.dim() == 1:
             warnings.warn("single channel prediction, `include_background=False` ignored.")
@@ -569,14 +636,14 @@ def recall_metric(
     rec = []
     for i in range(y.shape[1]):
         recall_score = F.recall(
-            one_hot(y[:, i].unsqueeze(1), num_classes=2),
-            one_hot(x[:, i].unsqueeze(1), num_classes=2),
+            one_hot(y[:, i].unsqueeze(1), num_classes=2) if to_one_hot else y,
+            one_hot(x[:, i].unsqueeze(1), num_classes=2) if to_one_hot else x,
             task="binary",
             average=average,
             multidim_average=mdmc_average,
             num_classes=y.shape[1],
         )
-        recall_score, _ = do_metric_reduction(recall_score, reduction=reduction)  # type: ignore
+        recall_score, _ = do_metric_reduction(recall_score, reduction=reduction)
         rec.append(recall_score.item())
     return torch.mean(torch.tensor(rec)).item()
 
@@ -705,15 +772,21 @@ class SegmentationMetrics:
     recall = 0.5006 +/- 0\n'
     """
 
-    def __init__(self, metric_funcs):
+    def __init__(self, metric_funcs, ddof: int = 1):
         """Inits :class:`SegmentationMetrics`.
         Parameters
         ----------
         metric_funcs : dict
             A dict where the keys are metric names and the values are Python functions for evaluating that metric.
+        ddof : int
+            Degrees of freedom, parsing direct behaviour of python runstats native library, with 1 indicating that we
+            compute metrics on a subset of the data (e.g. per-slice) and 0 indicating that we compute metrics on all
+            data points (e.g. volumetrically).
+            Default is ``1``.
         """
         self.metric_funcs = metric_funcs
         self.metrics_scores = {metric: Statistics() for metric in metric_funcs}
+        self.ddof = ddof
 
     def push(self, x, y):
         """Pushes a new batch of metrics to the running statistics.
@@ -747,7 +820,7 @@ class SegmentationMetrics:
 
     def stddevs(self):
         """Standard deviation of the means of each metric."""
-        return {metric: stat.stddev() for metric, stat in self.metrics_scores.items()}
+        return {metric: stat.stddev(ddof=self.ddof) for metric, stat in self.metrics_scores.items()}
 
     def __repr__(self):
         """Representation of the metrics."""

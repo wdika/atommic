@@ -39,6 +39,7 @@ class RSMRIDataTransforms:
     def __init__(
         self,
         complex_data: bool = True,
+        segmentation_mode: str = "multilabel",
         dataset_format: str = None,
         apply_prewhitening: bool = False,
         find_patch_size: bool = True,
@@ -97,7 +98,7 @@ class RSMRIDataTransforms:
         fft_normalization: str = "backward",
         spatial_dims: Sequence[int] = None,
         coil_dim: int = 0,
-        consecutive_slices: int = 1,  # pylint: disable=unused-argument
+        consecutive_slices: int = 1,
         use_seed: bool = True,
     ):
         """Inits :class:`RSMRIDataTransforms`.
@@ -106,6 +107,10 @@ class RSMRIDataTransforms:
         ----------
         complex_data : bool, optional
             Whether to use complex data. If ``False`` the data are assumed to be magnitude only. Default is ``True``.
+        segmentation_mode: str, optional
+            Defines the segmentation labels model, either ``multiclass``or ``multilabel``. In ``multiclass`` mode, only
+            one class is assigned per voxel. In ``multilabel`` mode, multiple (overlapping) classes are allowed per
+            voxel. Default is ``multilabel``.
         dataset_format : str, optional
             The format of the dataset. For example, ``'custom_dataset'`` or ``'public_dataset_name'``.
             Default is ``None``.
@@ -436,6 +441,8 @@ class RSMRIDataTransforms:
                 self.normalization,  # type: ignore
             ]
         )
+        self.consecutive_slices = consecutive_slices
+        self.segmentation_mode = segmentation_mode
 
         self.cropping = Composer([self.cropping])  # type: ignore
         self.normalization = Composer([self.normalization])  # type: ignore
@@ -573,6 +580,34 @@ class RSMRIDataTransforms:
         if segmentation_labels.dtype == torch.bool:
             segmentation_labels = segmentation_labels.float()
         segmentation_labels = torch.abs(segmentation_labels)
+
+        if self.segmentation_mode == "multiclass":
+            # Ensures background class is explicitly added when performing multiclass segmentation -> final total
+            # number of classes should be N + 1
+            if self.consecutive_slices > 1 and not torch.all(torch.sum(segmentation_labels[0], dim=0) == 1):
+                segmentation_labels_bg = torch.zeros(
+                    (segmentation_labels.shape[0], segmentation_labels.shape[2], segmentation_labels.shape[3])
+                )
+                segmentation_labels_new = torch.zeros(
+                    (
+                        segmentation_labels.shape[0],
+                        segmentation_labels.shape[1] + 1,
+                        segmentation_labels.shape[2],
+                        segmentation_labels.shape[3],
+                    )
+                )
+                for i in range(target_reconstruction.shape[0]):
+                    idx_background = torch.where(torch.sum(segmentation_labels[i], dim=0) == 0)
+                    segmentation_labels_bg[i][idx_background] = 1
+                    segmentation_labels_new[i] = torch.concat(
+                        (segmentation_labels_bg[i].unsqueeze(0), segmentation_labels[i]), dim=0
+                    )
+                segmentation_labels = segmentation_labels_new
+            elif not torch.all(torch.sum(segmentation_labels, dim=0) == 1):
+                segmentation_labels_bg = torch.zeros((segmentation_labels.shape[-2], segmentation_labels.shape[-1]))
+                idx_background = torch.where(torch.sum(segmentation_labels, dim=0) == 0)
+                segmentation_labels_bg[idx_background] = 1
+                segmentation_labels = torch.concat((segmentation_labels_bg.unsqueeze(0), segmentation_labels), dim=0)
 
         attrs.update(
             self.__parse_normalization_vars__(

@@ -43,7 +43,7 @@ class IDSLR(BaseMRIReconstructionSegmentationModel):
         if self.input_channels == 0:
             raise ValueError("Segmentation module input channels cannot be 0.")
         reconstruction_out_chans = cfg_dict.get("reconstruction_module_output_channels", 2)
-        self.segmentation_out_chans = cfg_dict.get("segmentation_module_output_channels", 1)
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
         chans = cfg_dict.get("channels", 32)
         num_pools = cfg_dict.get("num_pools", 4)
         drop_prob = cfg_dict.get("drop_prob", 0.0)
@@ -76,7 +76,7 @@ class IDSLR(BaseMRIReconstructionSegmentationModel):
         self.segmentation_decoder = UnetDecoder(
             chans=chans,
             num_pools=num_pools,
-            out_chans=self.segmentation_out_chans,
+            out_chans=self.segmentation_module_output_channels,
             drop_prob=drop_prob,
             normalize=normalize,
             padding=padding,
@@ -238,9 +238,13 @@ class IDSLR(BaseMRIReconstructionSegmentationModel):
         """
         if prediction.shape[-1] == 2:
             prediction = torch.view_as_complex(prediction)
-        if prediction.shape[1] != self.segmentation_out_chans and prediction.shape[1] != 2 and prediction.dim() == 5:
+        if (
+            prediction.shape[1] != self.segmentation_module_output_channels
+            and prediction.shape[1] != 2
+            and prediction.dim() == 5
+        ):
             prediction = prediction.squeeze(1)
-        if prediction.shape[1] != self.segmentation_out_chans:
+        if prediction.shape[1] != self.segmentation_module_output_channels:
             prediction = prediction.permute(0, 3, 1, 2)
         prediction = torch.abs(prediction)
         if self.normalize_segmentation_output:

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Tuple
 
 import h5py
-import ismrmrd
+import ismrmrd  # pylint: disable=import-error
 import numpy as np
 from tqdm import tqdm
 

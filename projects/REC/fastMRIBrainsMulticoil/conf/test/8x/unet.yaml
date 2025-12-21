@@ -19,6 +19,7 @@ model:
   normalization_type: minmax
   unnormalize_loss_inputs: false
   unnormalize_log_outputs: false
+  metric_computation_mode: per_slice  # per_slice: metrics are computed slice-wise and aggregated all together, per_volume: metrics are computed volume-wise and averaged by volume
   kspace_reconstruction_loss: false
   total_reconstruction_loss_weight: 1.0
   complex_valued_type: stacked  # stacked, complex_abs, complex_sqrt_abs
