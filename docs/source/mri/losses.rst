@@ -41,19 +41,37 @@ For ``reconstruction``,  ``qMRI`` and ``multitask`` tasks, the following losses 
     ----------
     .. [Cuturi2013] Marco Cuturi, Sinkhorn Distances: Lightspeed Computation of Optimal Transport, NIPS 2013
 
-* :class:`~atommic.collections.segmentation.losses.CrossEntropyLoss`:
+* :class:`~atommic.collections.segmentation.losses.CategoricalCrossEntropyLoss`:
     A loss function based on the cross-entropy between the predicted and the ground truth segmentation. It can be used
-    for segmentation tasks and it is a wrapper around ``torch.nn.CrossEntropyLoss``.
+    for multiclass segmentation tasks and it is a wrapper around ``torch.nn.CrossEntropyLoss``.
+
+* :class:`~atommic.collections.segmentation.losses.BinaryCrossEntropyLoss`:
+    A loss function based on the binary cross-entopy between the predicted and the ground truth segmentation. It can be used
+    for multiclass and multilabel segmentation tasks and it is a wrapper around ``torch.nn.BCEWithLogitsLoss``.
+
+* :class:`~atommic.collections.segmentation.losses.FocalLoss`:
+    A loss function based on the focal loss wich is an extention of a cross-entopy that down-weights loss from
+    high confidence correct predictions. It uses the predicted and the ground truth segmentation. It can be used
+    for multiclass and multilabel segmentation tasks and it is a wrapper around :py:class:`monai.losses.FocalLoss`.
 
 * :class:`~atommic.collections.segmentation.losses.Dice`:
     A loss function based on the Dice coefficient. It can be used for segmentation tasks and it is a wrapper for
-    :py:class:`monai.losses.DiceLoss` to support multi-class and multi-label tasks. It is based on [Milletari2016]_.
+    :py:class:`monai.losses.DiceLoss` to support multiclass and multilabel segmentation tasks. It is based on [Milletari2016]_.
 
     References
     ----------
     .. [Milletari2016] Milletari, F., Navab, N., & Ahmadi, S. A. (2016, October). V-net: Fully convolutional
         neural networks for volumetric medical image segmentation. In 2016 fourth international conference on 3D
         vision (3DV) (pp. 565-571). IEEE.
+
+* :class:`~atommic.collections.segmentation.losses.GeneralisedDice`:
+    A loss function based on the Generalised Dice coefficient. It can be used for segmentation tasks and it is a wrapper for
+    :py:class:`monai.losses.GeneralisedDiceLoss` to support multiclass and multilabel segmentation tasks. It is based on [Sudre2017]_.
+
+    References
+    ----------
+    .. [Sudre2017] Sudre, C. et. al. (2017) Generalised Dice overlap as a deep learning
+        loss function for highly unbalanced segmentations. DLMIA 2017.
 
 :class:`~atommic.collections.common.losses.AggregatorLoss`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

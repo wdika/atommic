@@ -37,8 +37,10 @@ from atommic.collections.multitask.rs.parts.transforms import RSMRIDataTransform
 from atommic.collections.reconstruction.losses.na import NoiseAwareLoss
 from atommic.collections.reconstruction.losses.ssim import SSIMLoss
 from atommic.collections.reconstruction.metrics import mse, nmse, psnr, ssim
-from atommic.collections.segmentation.losses.cross_entropy import CrossEntropyLoss
-from atommic.collections.segmentation.losses.dice import Dice
+from atommic.collections.segmentation.losses.cross_entropy import BinaryCrossEntropyLoss, CategoricalCrossEntropyLoss
+from atommic.collections.segmentation.losses.dice import Dice, GeneralisedDice
+from atommic.collections.segmentation.losses.focal import FocalLoss
+from atommic.collections.segmentation.losses.utils import one_hot
 
 __all__ = ["BaseMRIReconstructionSegmentationModel"]
 
@@ -67,7 +69,10 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         # Initialize the dimensionality of the data. It can be 2D or 2.5D -> meaning 2D with > 1 slices or 3D.
         self.dimensionality = cfg_dict.get("dimensionality", 2)
         self.consecutive_slices = cfg_dict.get("consecutive_slices", 1)
-        self.num_echoes = cfg_dict.get("num_echoes", 1)
+
+        # Set the output channels of the segmentation module.
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 2)
+
         # Initialize the coil combination method. It can be either "SENSE" or "RSS" (root-sum-of-squares) or
         # "RSS-complex" (root-sum-of-squares of the complex-valued data).
         self.coil_combination_method = cfg_dict.get("coil_combination_method", "SENSE")
@@ -154,9 +159,11 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         # Whether to log multiple modalities, e.g. T1, T2, and FLAIR will be stacked and logged.
         self.log_multiple_modalities = cfg_dict.get("log_multiple_modalities", False)
 
-        # Set threshold for segmentation classes. If None, no thresholding is applied.
+        # Set segmentation approach defaults
+        self.segmentation_mode = cfg_dict.get("segmentation_mode", "multilabel")
+        self.segmentation_activation = cfg_dict.get("segmentation_activation", "sigmoid")
         self.segmentation_classes_thresholds = cfg_dict.get("segmentation_classes_thresholds", None)
-        self.segmentation_activation = cfg_dict.get("segmentation_activation", None)
+        self.segmentation_output_mode = cfg_dict.get("segmentation_output_mode", "binary")
 
         # Initialize loss related parameters.
         self.segmentation_losses = {}
@@ -182,23 +189,65 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             segmentation_losses_ = {k: v / total_weight for k, v in segmentation_losses_.items()}
         for name in VALID_SEGMENTATION_LOSSES:
             if name in segmentation_losses_:
-                if name == "cross_entropy":
-                    cross_entropy_loss_classes_weight = torch.tensor(
-                        cfg_dict.get("cross_entropy_loss_classes_weight", 0.0)
-                    )
-                    self.segmentation_losses[name] = CrossEntropyLoss(
+                if name == "categorical_cross_entropy":
+                    if self.segmentation_mode == "multilabel":
+                        raise ValueError(
+                            "Categorical cross-entropy loss is not supported for multilabel segmentation. "
+                            "Please use binary cross-entropy."
+                        )
+                    self.segmentation_losses[name] = CategoricalCrossEntropyLoss(
+                        include_background=cfg_dict.get("cross_entropy_loss_include_background", True),
                         num_samples=cfg_dict.get("cross_entropy_loss_num_samples", 50),
                         ignore_index=cfg_dict.get("cross_entropy_loss_ignore_index", -100),
-                        reduction=cfg_dict.get("cross_entropy_loss_reduction", "none"),
+                        reduction=cfg_dict.get("cross_entropy_loss_reduction", "mean"),
                         label_smoothing=cfg_dict.get("cross_entropy_loss_label_smoothing", 0.0),
-                        weight=cross_entropy_loss_classes_weight,
+                        weight=cfg_dict.get("cross_entropy_loss_classes_weight", None),
+                        to_onehot_y=cfg_dict.get("cross_entropy_loss_to_onehot_y", False),
+                        num_segmentation_classes=self.segmentation_module_output_channels,
+                    )
+                elif name == "binary_cross_entropy":
+                    if self.segmentation_mode == "multiclass":
+                        raise ValueError(
+                            "Binary cross-entropy loss is not supported for multiclass segmentation. "
+                            "Please use categorical cross-entropy."
+                        )
+                    self.segmentation_losses[name] = BinaryCrossEntropyLoss(
+                        include_background=cfg_dict.get("cross_entropy_loss_include_background", False),
+                        num_samples=cfg_dict.get("cross_entropy_loss_num_samples", 50),
+                        reduction=cfg_dict.get("cross_entropy_loss_reduction", "mean"),
+                        weight=cfg_dict.get("cross_entropy_loss_classes_weight", None),
+                        to_onehot_y=cfg_dict.get("cross_entropy_loss_to_onehot_y", False),
+                        num_segmentation_classes=self.segmentation_module_output_channels,
+                    )
+                elif name == "focal_loss":
+                    use_softmax = cfg_dict.get("focal_loss_use_softmax", False)
+                    if self.segmentation_mode == "multiclass" and not use_softmax:
+                        raise ValueError(
+                            "Focal loss without softmax operations is not supported for multiclass segmentation. "
+                            "Change focal_loss_use_softmax = true"
+                        )
+                    self.segmentation_losses[name] = FocalLoss(
+                        include_background=cfg_dict.get("focal_loss_include_background", False),
+                        reduction=cfg_dict.get("focal_loss_reduction", "mean"),
+                        weight=cfg_dict.get("focal_loss_classes_weight", None),
+                        alpha=cfg_dict.get("focal_loss_alpha", None),
+                        gamma=cfg_dict.get("focal_loss_gamma", 2.0),
+                        use_softmax=use_softmax,
+                        to_onehot_y=cfg_dict.get("focal_loss_to_onehot_y", False),
+                        num_segmentation_classes=self.segmentation_module_output_channels,
                     )
                 elif name == "dice":
+                    use_softmax = cfg_dict.get("dice_loss_softmax", False)
+                    if self.segmentation_mode == "multiclass" and not use_softmax:
+                        warnings.warn(
+                            "Dice loss without softmax operation is not advised for multiclass segmentation. "
+                            "Change dice_loss_softmax = true"
+                        )
                     self.segmentation_losses[name] = Dice(
                         include_background=cfg_dict.get("dice_loss_include_background", False),
                         to_onehot_y=cfg_dict.get("dice_loss_to_onehot_y", False),
-                        sigmoid=cfg_dict.get("dice_loss_sigmoid", True),
-                        softmax=cfg_dict.get("dice_loss_softmax", False),
+                        sigmoid=cfg_dict.get("dice_loss_sigmoid", False),
+                        softmax=use_softmax,
                         other_act=cfg_dict.get("dice_loss_other_act", None),
                         squared_pred=cfg_dict.get("dice_loss_squared_pred", False),
                         jaccard=cfg_dict.get("dice_loss_jaccard", False),
@@ -206,18 +255,43 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                         reduction=cfg_dict.get("dice_loss_reduction", "mean"),
                         smooth_nr=cfg_dict.get("dice_loss_smooth_nr", 1e-5),
                         smooth_dr=cfg_dict.get("dice_loss_smooth_dr", 1e-5),
-                        batch=cfg_dict.get("dice_loss_batch", False),
+                        batch=cfg_dict.get("dice_loss_batch", True),
+                        num_segmentation_classes=self.segmentation_module_output_channels,
                     )
+                elif name == "generalized_dice":
+                    use_softmax = cfg_dict.get("dice_loss_softmax", False)
+                    if self.segmentation_mode == "multiclass" and not use_softmax:
+                        warnings.warn(
+                            "Generalised dice loss without softmax operation is not advised for multiclass "
+                            "segmentation. Change dice_loss_softmax = true"
+                        )
+                    self.segmentation_losses[name] = GeneralisedDice(
+                        include_background=cfg_dict.get("dice_loss_include_background", False),
+                        to_onehot_y=cfg_dict.get("dice_loss_to_onehot_y", False),
+                        sigmoid=cfg_dict.get("dice_loss_sigmoid", True),
+                        softmax=use_softmax,
+                        other_act=cfg_dict.get("dice_loss_other_act", None),
+                        reduction=cfg_dict.get("dice_loss_reduction", "mean"),
+                        w_type=cfg_dict.get("dice_loss_w_type", "square"),
+                        smooth_nr=cfg_dict.get("dice_loss_smooth_nr", 1e-5),
+                        smooth_dr=cfg_dict.get("dice_loss_smooth_dr", 1e-5),
+                        batch=cfg_dict.get("dice_loss_batch", True),
+                        num_segmentation_classes=self.segmentation_module_output_channels,
+                    )
+
         self.segmentation_losses = {f"loss_{i+1}": v for i, v in enumerate(self.segmentation_losses.values())}
         self.total_segmentation_losses = len(self.segmentation_losses)
         self.total_segmentation_loss_weight = cfg_dict.get("total_segmentation_loss_weight", 1.0)
 
         # Set the metrics
+        cross_entropy_metric_include_background = cfg_dict.get("cross_entropy_metric_include_background", False)
         cross_entropy_metric_num_samples = cfg_dict.get("cross_entropy_metric_num_samples", 50)
         cross_entropy_metric_ignore_index = cfg_dict.get("cross_entropy_metric_ignore_index", -100)
-        cross_entropy_metric_reduction = cfg_dict.get("cross_entropy_metric_reduction", "none")
+        cross_entropy_metric_reduction = cfg_dict.get("cross_entropy_metric_reduction", "mean")
         cross_entropy_metric_label_smoothing = cfg_dict.get("cross_entropy_metric_label_smoothing", 0.0)
-        cross_entropy_metric_classes_weight = torch.tensor(cfg_dict.get("cross_entropy_metric_classes_weight", 0.0))
+        cross_entropy_metric_classes_weight = cfg_dict.get("cross_entropy_metric_classes_weight", None)
+        cross_entropy_metric_to_onehot_y = cfg_dict.get("cross_entropy_metric_to_onehot_y", False)
+
         dice_metric_include_background = cfg_dict.get("dice_metric_include_background", False)
         dice_metric_to_onehot_y = cfg_dict.get("dice_metric_to_onehot_y", False)
         dice_metric_sigmoid = cfg_dict.get("dice_metric_sigmoid", True)
@@ -230,6 +304,13 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         dice_metric_smooth_nr = cfg_dict.get("dice_metric_smooth_nr", 1e-5)
         dice_metric_smooth_dr = cfg_dict.get("dice_metric_smooth_dr", 1e-5)
         dice_metric_batch = cfg_dict.get("dice_metric_batch", True)
+
+        self.metric_computation_mode = cfg_dict.get("metric_computation_mode", "per_slice")
+        if self.metric_computation_mode not in ["per_slice", "per_volume"]:
+            raise ValueError(
+                f"metric_computation_mode = {self.metric_computation_mode} is not supported. Please select "
+                "'per_slice' or 'per_volume'."
+            )
 
         # Initialize the module
         super().__init__(cfg=cfg, trainer=trainer)
@@ -264,16 +345,27 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             self.ssim_vals_reconstruction: Dict = defaultdict(dict)
             self.psnr_vals_reconstruction: Dict = defaultdict(dict)
 
-        if not is_none(cross_entropy_metric_classes_weight) and cross_entropy_metric_classes_weight != 0.0:
-            self.cross_entropy_metric = CrossEntropyLoss(
+        if self.segmentation_mode == "multilabel":
+            self.cross_entropy_metric = BinaryCrossEntropyLoss(
+                include_background=cross_entropy_metric_include_background,
+                num_samples=cross_entropy_metric_num_samples,
+                weight=cross_entropy_metric_classes_weight,
+                reduction=cross_entropy_metric_reduction,
+                to_onehot_y=cross_entropy_metric_to_onehot_y,
+                num_segmentation_classes=self.segmentation_module_output_channels,
+            )
+        else:
+            self.cross_entropy_metric = CategoricalCrossEntropyLoss(
+                include_background=cross_entropy_metric_include_background,
                 num_samples=cross_entropy_metric_num_samples,
                 ignore_index=cross_entropy_metric_ignore_index,
                 reduction=cross_entropy_metric_reduction,
                 label_smoothing=cross_entropy_metric_label_smoothing,
                 weight=cross_entropy_metric_classes_weight,
+                to_onehot_y=cross_entropy_metric_to_onehot_y,
+                num_segmentation_classes=self.segmentation_module_output_channels,
             )
-        else:
-            self.cross_entropy_metric = None  # type: ignore
+
         self.dice_metric = Dice(
             include_background=dice_metric_include_background,
             to_onehot_y=dice_metric_to_onehot_y,
@@ -287,11 +379,13 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             smooth_nr=dice_metric_smooth_nr,
             smooth_dr=dice_metric_smooth_dr,
             batch=dice_metric_batch,
+            num_segmentation_classes=self.segmentation_module_output_channels,
         )
 
         # Set aggregation loss
         self.total_segmentation_loss = AggregatorLoss(
-            num_inputs=self.total_segmentation_losses, weights=list(segmentation_losses_.values())
+            num_inputs=self.total_segmentation_losses,
+            weights=list(segmentation_losses_.values()),
         )
 
         # Set distributed metrics
@@ -354,30 +448,42 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             target = unnormalize(
                 target,
                 {
-                    "min": attrs["prediction_min"][batch_idx]
-                    if "prediction_min" in attrs
-                    else attrs[f"prediction_min_{r}"][batch_idx],
-                    "max": attrs["prediction_max"][batch_idx]
-                    if "prediction_max" in attrs
-                    else attrs[f"prediction_max_{r}"][batch_idx],
-                    "mean": attrs["prediction_mean"][batch_idx]
-                    if "prediction_mean" in attrs
-                    else attrs[f"prediction_mean_{r}"][batch_idx],
-                    "std": attrs["prediction_std"][batch_idx]
-                    if "prediction_std" in attrs
-                    else attrs[f"prediction_std_{r}"][batch_idx],
+                    "min": (
+                        attrs["prediction_min"][batch_idx]
+                        if "prediction_min" in attrs
+                        else attrs[f"prediction_min_{r}"][batch_idx]
+                    ),
+                    "max": (
+                        attrs["prediction_max"][batch_idx]
+                        if "prediction_max" in attrs
+                        else attrs[f"prediction_max_{r}"][batch_idx]
+                    ),
+                    "mean": (
+                        attrs["prediction_mean"][batch_idx]
+                        if "prediction_mean" in attrs
+                        else attrs[f"prediction_mean_{r}"][batch_idx]
+                    ),
+                    "std": (
+                        attrs["prediction_std"][batch_idx]
+                        if "prediction_std" in attrs
+                        else attrs[f"prediction_std_{r}"][batch_idx]
+                    ),
                 },
                 self.normalization_type,
             )
             prediction = unnormalize(
                 prediction,
                 {
-                    "min": attrs["noise_prediction_min"][batch_idx]
-                    if "noise_prediction_min" in attrs
-                    else attrs[f"noise_prediction_min_{r}"][batch_idx],
-                    "max": attrs["noise_prediction_max"][batch_idx]
-                    if "noise_prediction_max" in attrs
-                    else attrs[f"noise_prediction_max_{r}"][batch_idx],
+                    "min": (
+                        attrs["noise_prediction_min"][batch_idx]
+                        if "noise_prediction_min" in attrs
+                        else attrs[f"noise_prediction_min_{r}"][batch_idx]
+                    ),
+                    "max": (
+                        attrs["noise_prediction_max"][batch_idx]
+                        if "noise_prediction_max" in attrs
+                        else attrs[f"noise_prediction_max_{r}"][batch_idx]
+                    ),
                     attrs["noise_prediction_mean"][batch_idx]
                     if "noise_prediction_mean" in attrs
                     else "mean": attrs[f"noise_prediction_mean_{r}"][batch_idx],
@@ -391,36 +497,52 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             target = unnormalize(
                 target,
                 {
-                    "min": attrs["target_min"][batch_idx]
-                    if "target_min" in attrs
-                    else attrs[f"target_min_{r}"][batch_idx],
-                    "max": attrs["target_max"][batch_idx]
-                    if "target_max" in attrs
-                    else attrs[f"target_max_{r}"][batch_idx],
-                    "mean": attrs["target_mean"][batch_idx]
-                    if "target_mean" in attrs
-                    else attrs[f"target_mean_{r}"][batch_idx],
-                    "std": attrs["target_std"][batch_idx]
-                    if "target_std" in attrs
-                    else attrs[f"target_std_{r}"][batch_idx],
+                    "min": (
+                        attrs["target_min"][batch_idx]
+                        if "target_min" in attrs
+                        else attrs[f"target_min_{r}"][batch_idx]
+                    ),
+                    "max": (
+                        attrs["target_max"][batch_idx]
+                        if "target_max" in attrs
+                        else attrs[f"target_max_{r}"][batch_idx]
+                    ),
+                    "mean": (
+                        attrs["target_mean"][batch_idx]
+                        if "target_mean" in attrs
+                        else attrs[f"target_mean_{r}"][batch_idx]
+                    ),
+                    "std": (
+                        attrs["target_std"][batch_idx]
+                        if "target_std" in attrs
+                        else attrs[f"target_std_{r}"][batch_idx]
+                    ),
                 },
                 self.normalization_type,
             )
             prediction = unnormalize(
                 prediction,
                 {
-                    "min": attrs["prediction_min"][batch_idx]
-                    if "prediction_min" in attrs
-                    else attrs[f"prediction_min_{r}"][batch_idx],
-                    "max": attrs["prediction_max"][batch_idx]
-                    if "prediction_max" in attrs
-                    else attrs[f"prediction_max_{r}"][batch_idx],
-                    "mean": attrs["prediction_mean"][batch_idx]
-                    if "prediction_mean" in attrs
-                    else attrs[f"prediction_mean_{r}"][batch_idx],
-                    "std": attrs["prediction_std"][batch_idx]
-                    if "prediction_std" in attrs
-                    else attrs[f"prediction_std_{r}"][batch_idx],
+                    "min": (
+                        attrs["prediction_min"][batch_idx]
+                        if "prediction_min" in attrs
+                        else attrs[f"prediction_min_{r}"][batch_idx]
+                    ),
+                    "max": (
+                        attrs["prediction_max"][batch_idx]
+                        if "prediction_max" in attrs
+                        else attrs[f"prediction_max_{r}"][batch_idx]
+                    ),
+                    "mean": (
+                        attrs["prediction_mean"][batch_idx]
+                        if "prediction_mean" in attrs
+                        else attrs[f"prediction_mean_{r}"][batch_idx]
+                    ),
+                    "std": (
+                        attrs["prediction_std"][batch_idx]
+                        if "prediction_std" in attrs
+                        else attrs[f"prediction_std_{r}"][batch_idx]
+                    ),
                 },
                 self.normalization_type,
             )
@@ -754,11 +876,24 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             output_predictions_reconstruction = output_predictions_reconstruction / torch.max(
                 torch.abs(output_predictions_reconstruction)
             )
-
             output_predictions_reconstruction = output_predictions_reconstruction.detach().cpu().float()
             output_target_reconstruction = output_target_reconstruction.detach().cpu().float()
             output_target_segmentation = output_target_segmentation.detach().cpu().float()
             output_predictions_segmentation = output_predictions_segmentation.detach().cpu().float()
+
+            if self.segmentation_mode == 'multiclass':
+                output_predictions_segmentation = torch.softmax(output_predictions_segmentation, dim=0).float()
+                if self.segmentation_output_mode == "binary":
+                    output_predictions_segmentation = output_predictions_segmentation.argmax(dim=0, keepdim=True)
+                    output_predictions_segmentation = one_hot(
+                        output_predictions_segmentation, num_classes=self.segmentation_module_output_channels, dim=0
+                    )
+            else:
+                # When using wandb plots needs to be between [0,1]. When using "multilabel" with/without thresholding
+                # the outputs are logits and exceed this range.
+                output_predictions_segmentation = output_predictions_segmentation.clamp(0, 1).float()
+                if self.segmentation_output_mode == "binary":
+                    output_predictions_segmentation = torch.where(output_predictions_segmentation > 0.5, 1, 0).float()
 
             # Log target and predictions, if log_image is True for this slice.
             if attrs["log_image"][_batch_idx_]:
@@ -843,7 +978,6 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                     output_target_segmentation.to(self.device),
                     output_predictions_segmentation.to(self.device),
                 )
-
             dice_score, _ = self.dice_metric(output_target_segmentation, output_predictions_segmentation)
             self.dice_vals[fname[_batch_idx_]][str(slice_idx[_batch_idx_].item())] = dice_score
 
@@ -1168,7 +1302,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                     batch_size * slices, *predictions_segmentation.shape[2:]
                 )
 
-        if not is_none(self.segmentation_classes_thresholds):
+        if not is_none(self.segmentation_classes_thresholds) and self.segmentation_mode == 'multilabel':
             for class_idx, thres in enumerate(self.segmentation_classes_thresholds):
                 if self.segmentation_activation == "sigmoid":
                     if isinstance(predictions_segmentation, list):
@@ -1512,6 +1646,16 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             while isinstance(predictions_segmentation, list):
                 predictions_segmentation = predictions_segmentation[-1]
 
+        if self.segmentation_mode == 'multiclass':
+            predictions_segmentation = torch.softmax(predictions_segmentation, dim=1).float()
+            if self.segmentation_output_mode == "binary":
+                predictions_segmentation = predictions_segmentation.argmax(dim=1, keepdim=True)
+                predictions_segmentation = one_hot(
+                    predictions_segmentation, num_classes=self.segmentation_module_output_channels, dim=1
+                )
+        elif self.segmentation_output_mode == "binary":
+            predictions_segmentation = torch.where(predictions_segmentation > 0.5, 1, 0).float()
+
         predictions_segmentation = predictions_segmentation.detach().cpu().numpy()
 
         if self.use_reconstruction_module:
@@ -1594,29 +1738,52 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
 
             metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0}
 
-        local_examples = 0
-        for fname in dice_vals:
-            local_examples += 1
-            if self.cross_entropy_metric is not None:
-                metrics_segmentation["Cross_Entropy"] = metrics_segmentation["Cross_Entropy"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in cross_entropy_vals[fname].items()])
+        if self.metric_computation_mode == "per_volume":
+            local_examples = 0
+            for fname in dice_vals:
+                local_examples += 1
+                if self.cross_entropy_metric is not None:
+                    metrics_segmentation["Cross_Entropy"] = metrics_segmentation["Cross_Entropy"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in cross_entropy_vals[fname].items()])
+                    )
+                metrics_segmentation["DICE"] = metrics_segmentation["DICE"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in dice_vals[fname].items()])
                 )
-            metrics_segmentation["DICE"] = metrics_segmentation["DICE"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in dice_vals[fname].items()])
-            )
+
+                if self.use_reconstruction_module:
+                    metrics_reconstruction["MSE"] = metrics_reconstruction["MSE"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["NMSE"] = metrics_reconstruction["NMSE"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["SSIM"] = metrics_reconstruction["SSIM"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                    )
+        else:  # per-slice
+            if self.cross_entropy_metric is not None:
+                metrics_segmentation["Cross_Entropy"] = torch.sum(
+                    torch.stack([v for x in cross_entropy_vals.values() for v in x.values()])
+                )
+            dice_vals = [v for x in dice_vals.values() for v in x.values()]
+            local_examples = len(dice_vals)
+            metrics_segmentation["DICE"] = torch.sum(torch.stack(dice_vals))
 
             if self.use_reconstruction_module:
-                metrics_reconstruction["MSE"] = metrics_reconstruction["MSE"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                metrics_segmentation["MSE"] = torch.sum(
+                    torch.stack([v for x in mse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["NMSE"] = metrics_reconstruction["NMSE"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                metrics_segmentation["NMSE"] = torch.sum(
+                    torch.stack([v for x in nmse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["SSIM"] = metrics_reconstruction["SSIM"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                metrics_segmentation["SSIM"] = torch.sum(
+                    torch.stack([v for x in ssim_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                metrics_segmentation["PSNR"] = torch.sum(
+                    torch.stack([v for x in psnr_vals_reconstruction.values() for v in x.values()])
                 )
 
         # reduce across ddp via sum
@@ -1675,29 +1842,52 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
 
             metrics_reconstruction = {"MSE": 0, "NMSE": 0, "SSIM": 0, "PSNR": 0}
 
-        local_examples = 0
-        for fname in dice_vals:
-            local_examples += 1
-            if self.cross_entropy_metric is not None:
-                metrics_segmentation["Cross_Entropy"] = metrics_segmentation["Cross_Entropy"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in cross_entropy_vals[fname].items()])
+        if self.metric_computation_mode == "per_volume":
+            local_examples = 0
+            for fname in dice_vals:
+                local_examples += 1
+                if self.cross_entropy_metric is not None:
+                    metrics_segmentation["Cross_Entropy"] = metrics_segmentation["Cross_Entropy"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in cross_entropy_vals[fname].items()])
+                    )
+                metrics_segmentation["DICE"] = metrics_segmentation["DICE"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in dice_vals[fname].items()])
                 )
-            metrics_segmentation["DICE"] = metrics_segmentation["DICE"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in dice_vals[fname].items()])
-            )
+
+                if self.use_reconstruction_module:
+                    metrics_reconstruction["MSE"] = metrics_reconstruction["MSE"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["NMSE"] = metrics_reconstruction["NMSE"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["SSIM"] = metrics_reconstruction["SSIM"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                    )
+                    metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
+                        torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                    )
+        else:  # per-slice
+            if self.cross_entropy_metric is not None:
+                metrics_segmentation["Cross_Entropy"] = torch.sum(
+                    torch.stack([v for x in cross_entropy_vals.values() for v in x.values()])
+                )
+            dice_vals = [v for x in dice_vals.values() for v in x.values()]
+            local_examples = len(dice_vals)
+            metrics_segmentation["DICE"] = torch.sum(torch.stack(dice_vals))
 
             if self.use_reconstruction_module:
-                metrics_reconstruction["MSE"] = metrics_reconstruction["MSE"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in mse_vals_reconstruction[fname].items()])
+                metrics_segmentation["MSE"] = torch.sum(
+                    torch.stack([v for x in mse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["NMSE"] = metrics_reconstruction["NMSE"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in nmse_vals_reconstruction[fname].items()])
+                metrics_segmentation["NMSE"] = torch.sum(
+                    torch.stack([v for x in nmse_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["SSIM"] = metrics_reconstruction["SSIM"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in ssim_vals_reconstruction[fname].items()])
+                metrics_segmentation["SSIM"] = torch.sum(
+                    torch.stack([v for x in ssim_vals_reconstruction.values() for v in x.values()])
                 )
-                metrics_reconstruction["PSNR"] = metrics_reconstruction["PSNR"] + torch.mean(
-                    torch.cat([v.view(-1) for _, v in psnr_vals_reconstruction[fname].items()])
+                metrics_segmentation["PSNR"] = torch.sum(
+                    torch.stack([v for x in psnr_vals_reconstruction.values() for v in x.values()])
                 )
 
         # reduce across ddp via sum
@@ -1834,6 +2024,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             log_images_rate=cfg.get("log_images_rate", 1.0),
             transform=RSMRIDataTransforms(
                 complex_data=complex_data,
+                segmentation_mode=cfg.get("segmentation_mode", "multilabel"),
                 dataset_format=dataset_format,
                 apply_prewhitening=cfg.get("apply_prewhitening", False),
                 find_patch_size=cfg.get("find_patch_size", False),

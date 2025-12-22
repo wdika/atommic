@@ -48,7 +48,7 @@ __all__ = ["BaseMRIReconstructionModel"]
 class BaseMRIReconstructionModel(BaseMRIModel, ABC):
     """Base class of all MRI reconstruction models."""
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):  # noqa: MC0001
         """Inits :class:`BaseMRIReconstructionModel`.
 
         Parameters
@@ -140,6 +140,13 @@ class BaseMRIReconstructionModel(BaseMRIModel, ABC):
         # Refers to the type of the complex-valued data. It can be either "stacked" or "complex_abs" or
         # "complex_sqrt_abs".
         self.complex_valued_type = cfg_dict.get("complex_valued_type", "stacked")
+
+        self.metric_computation_mode = cfg_dict.get("metric_computation_mode", "per_slice")
+        if self.metric_computation_mode not in ["per_slice", "per_volume"]:
+            raise ValueError(
+                f"metric_computation_mode = {self.metric_computation_mode} is not supported. Please select "
+                "'per_slice' or 'per_volume'."
+            )
 
         # Initialize the module
         super().__init__(cfg=cfg, trainer=trainer)
@@ -1176,19 +1183,28 @@ class BaseMRIReconstructionModel(BaseMRIModel, ABC):
             "SSIM": 0,
             "PSNR": 0,
         }
-        local_examples = 0
-        for fname in mse_vals:
-            local_examples += 1
-            metrics["MSE"] = metrics["MSE"] + torch.mean(torch.cat([v.view(-1) for _, v in mse_vals[fname].items()]))
-            metrics["NMSE"] = metrics["NMSE"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in nmse_vals[fname].items()])
-            )
-            metrics["SSIM"] = metrics["SSIM"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in ssim_vals[fname].items()])
-            )
-            metrics["PSNR"] = metrics["PSNR"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in psnr_vals[fname].items()])
-            )
+
+        if self.metric_computation_mode == "per_volume":
+            local_examples = 0
+            for fname in mse_vals:
+                local_examples += 1
+                metrics["MSE"] = metrics["MSE"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in mse_vals[fname].items()])
+                )
+                metrics["NMSE"] = metrics["NMSE"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in nmse_vals[fname].items()])
+                )
+                metrics["SSIM"] = metrics["SSIM"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in ssim_vals[fname].items()])
+                )
+                metrics["PSNR"] = metrics["PSNR"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in psnr_vals[fname].items()])
+                )
+        else:  # per-slice
+            metrics["MSE"] = torch.sum(torch.stack([v for x in mse_vals.values() for v in x.values()]))
+            metrics["NMSE"] = torch.sum(torch.stack([v for x in nmse_vals.values() for v in x.values()]))
+            metrics["SSIM"] = torch.sum(torch.stack([v for x in ssim_vals.values() for v in x.values()]))
+            metrics["PSNR"] = torch.sum(torch.stack([v for x in psnr_vals.values() for v in x.values()]))
 
         # reduce across ddp via sum
         metrics["MSE"] = self.MSE(metrics["MSE"])

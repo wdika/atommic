@@ -97,10 +97,10 @@ class SERANet(BaseMRIReconstructionSegmentationModel):
             coil_combination_method=self.coil_combination_method,
         )
         self.segmentation_module_input_channels = cfg_dict.get("segmentation_module_input_channels", 2)
-        segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
         self.segmentation_module = ConvLSTMNormUnet(
             in_chans=self.segmentation_module_input_channels,
-            out_chans=segmentation_module_output_channels,
+            out_chans=self.segmentation_module_output_channels,
             chans=cfg_dict.get("segmentation_module_channels", 64),
             num_pools=cfg_dict.get("segmentation_module_pooling_layers", 2),
             drop_prob=cfg_dict.get("segmentation_module_dropout", 0.0),
@@ -109,12 +109,12 @@ class SERANet(BaseMRIReconstructionSegmentationModel):
             num_iterations=cfg_dict.get("recurrent_module_iterations", 3),
             attention_model=AttentionGate(
                 in_chans_x=self.segmentation_module_input_channels * 2,
-                in_chans_g=segmentation_module_output_channels,
-                out_chans=segmentation_module_output_channels,
+                in_chans_g=self.segmentation_module_output_channels,
+                out_chans=self.segmentation_module_output_channels,
             ),
             unet_model=ConvLSTMNormUnet(
                 in_chans=self.segmentation_module_input_channels * 2,
-                out_chans=segmentation_module_output_channels,
+                out_chans=self.segmentation_module_output_channels,
                 chans=cfg_dict.get("recurrent_module_attention_channels", 64),
                 num_pools=cfg_dict.get("recurrent_module_attention_pooling_layers", 2),
                 drop_prob=cfg_dict.get("recurrent_module_attention_dropout", 0.0),

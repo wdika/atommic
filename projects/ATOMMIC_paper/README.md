@@ -1,5 +1,10 @@
 # **Reproducing the ATOMMIC paper**
 
+## **Important: ATOMMIC paper can be reproduced only with version 1.0.1!**
+```bash
+pip install atommic==1.0.1
+```
+
 The ATOMMIC paper preprint is available at https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4801289 and https://arxiv.org/abs/2404.19665. In this README, we provide instructions for reproducing the results of the paper.
 
 **Note:** You would need to download and preprocess the following datasets to reproduce the results. Please refer to each project folder for more information:

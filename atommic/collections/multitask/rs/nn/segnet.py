@@ -52,7 +52,7 @@ class SegNet(BaseMRIReconstructionSegmentationModel):
 
         self.input_channels = cfg_dict.get("input_channels", 2)
         reconstruction_out_chans = cfg_dict.get("reconstruction_module_output_channels", 2)
-        segmentation_out_chans = cfg_dict.get("segmentation_module_output_channels", 1)
+        self.segmentation_module_output_channels = cfg_dict.get("segmentation_module_output_channels", 1)
         chans = cfg_dict.get("channels", 32)
         num_pools = cfg_dict.get("num_pools", 4)
         drop_prob = cfg_dict.get("drop_prob", 0.0)
@@ -97,7 +97,7 @@ class SegNet(BaseMRIReconstructionSegmentationModel):
                 UnetDecoder(
                     chans=chans,
                     num_pools=num_pools,
-                    out_chans=segmentation_out_chans,
+                    out_chans=self.segmentation_module_output_channels,
                     drop_prob=drop_prob,
                     normalize=normalize,
                     padding=padding,
@@ -110,8 +110,8 @@ class SegNet(BaseMRIReconstructionSegmentationModel):
 
         self.segmentation_final_layer = torch.nn.Sequential(
             ConvNonlinear(
-                segmentation_out_chans * num_cascades,
-                segmentation_out_chans,
+                self.segmentation_module_output_channels * num_cascades,
+                self.segmentation_module_output_channels,
                 conv_dim=cfg_dict.get("segmentation_final_layer_conv_dim", 2),
                 kernel_size=cfg_dict.get("segmentation_final_layer_kernel_size", 3),
                 dilation=cfg_dict.get("segmentation_final_layer_dilation", 1),

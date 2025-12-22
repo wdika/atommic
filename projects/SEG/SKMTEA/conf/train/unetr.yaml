@@ -7,7 +7,7 @@ model:
   use_reconstruction_module: false
   segmentation_module: UNETR
   segmentation_module_input_channels: 1
-  segmentation_module_output_channels: 4
+  segmentation_module_output_channels: 4  # N + 1 (bg) channels, if multiclass segmentation
   segmentation_module_img_size: [512, 512]
   segmentation_module_channels: 16
   segmentation_module_hidden_size: 768
@@ -22,39 +22,65 @@ model:
   segmentation_module_normalize: false
   segmentation_module_norm_groups: 2
   segmentation_loss:
-    dice: 1.0
-  dice_loss_include_background: true  # always set to true if the background is removed
+    binary_cross_entropy: 0.5  # if multilabel segmentation
+#    categorical_cross_entropy: 0.5  # if multiclass segmentation
+    dice: 0.5
+  # binary_cross_entropy loss
+  cross_entropy_loss_include_background: true  # for ce loss computation only -> since bg is removed during preproc in skm-tea
+  cross_entropy_loss_classes_weight: [1.0, 1.0, 1.0, 1.0]
+  cross_entropy_loss_reduction: mean
+  # categorical_cross_entropy loss
+#  cross_entropy_loss_include_background: false  # bg is removed during preproc in skm-tea, however is added back since we are doing multiclass segmentation -> so disable during metric computation
+#  cross_entropy_loss_classes_weight: [1.0, 1.0, 1.0, 1.0]
+#  cross_entropy_loss_to_onehot_y: false  # since it's softmaxed -> already one-hot encoded
+#  cross_entropy_loss_reduction: mean
+  # dice loss
+  dice_loss_include_background: true  # always set to true if the background is removed -> since bg is removed during preproc in skm-tea
+#  dice_loss_include_background: false  # if multiclass segmentation, bg is removed during preproc in skm-tea, however is added back since we are doing multiclass segmentation -> so disable during metric computation
   dice_loss_to_onehot_y: false
-  dice_loss_sigmoid: false
-  dice_loss_softmax: false
+  dice_loss_sigmoid: false  # set only if segmentation_activation is not set by default to sigmoid for multilabel or softmax for multiclass, otherwise it will reapplied to already sigmoided outputs
+  dice_loss_softmax: false  # set only if segmentation_activation is not set by default to sigmoid for multilabel or softmax for multiclass, otherwise it will reapplied to already softmaxed outputs
   dice_loss_other_act: none
   dice_loss_squared_pred: false
   dice_loss_jaccard: false
   dice_loss_flatten: false
-  dice_loss_reduction: mean_batch
+  dice_loss_reduction: mean  # since dice_loss_batch is set to true, otherwise should be mean
   dice_loss_smooth_nr: 1e-5
   dice_loss_smooth_dr: 1e-5
   dice_loss_batch: true
-  dice_metric_include_background: true  # always set to true if the background is removed
+  # binary_cross_entropy metric
+  cross_entropy_metric_include_background: true  # for ce metric computation only -> since bg is removed during preproc in skm-tea
+  cross_entropy_metric_classes_weight: [ 1.0, 1.0, 1.0, 1.0 ]
+  cross_entropy_metric_reduction: mean
+  # categorical_cross_entropy metric
+#  cross_entropy_metric_include_background: false  # bg is removed during preproc in skm-tea, however is added back since we are doing multiclass segmentation -> so disable during metric computation
+#  cross_entropy_metric_classes_weight: [1.0, 1.0, 1.0, 1.0]
+#  cross_entropy_metric_to_onehot_y: false  # since it's softmaxed -> already one-hot encoded
+#  cross_entropy_metric_reduction: mean
+  dice_metric_include_background: true  # always set to true if the background is removed -> since bg is removed during preproc in skm-tea
+#  dice_metric_include_background: false  # if multiclass segmentation, bg is removed during preproc in skm-tea, however is added back since we are doing multiclass segmentation -> so disable during metric computation
   dice_metric_to_onehot_y: false
-  dice_metric_sigmoid: false
-  dice_metric_softmax: false
+  dice_metric_sigmoid: false  # set only if segmentation_activation is not set by default to sigmoid for multilabel or softmax for multiclass, otherwise it will reapplied to already sigmoided outputs
+  dice_metric_softmax: false  # set only if segmentation_activation is not set by default to sigmoid for multilabel or softmax for multiclass, otherwise it will reapplied to already softmaxed outputs
   dice_metric_other_act: none
   dice_metric_squared_pred: false
   dice_metric_jaccard: false
   dice_metric_flatten: false
-  dice_metric_reduction: mean_batch
+  dice_metric_reduction: mean  # since dice_metric_batch is set to true, otherwise should be mean
   dice_metric_smooth_nr: 1e-5
   dice_metric_smooth_dr: 1e-5
   dice_metric_batch: true
   segmentation_classes_thresholds: [0.5, 0.5, 0.5, 0.5]
   segmentation_activation: sigmoid
+#  segmentation_activation: softmax  # if multiclass segmentation
+#  segmentation_mode: multiclass
   magnitude_input: true
   log_multiple_modalities: false  # log all modalities in the same image, e.g. T1, T2, T1ce, FLAIR will be concatenated
   normalization_type: minmax
   normalize_segmentation_output: true
   unnormalize_loss_inputs: false
   unnormalize_log_outputs: false
+  metric_computation_mode: per_slice  # per_slice: metrics are computed slice-wise and aggregated all together, per_volume: metrics are computed volume-wise and averaged by volume
   complex_data: false
   consecutive_slices: 3
   dimensionality: 2
@@ -95,6 +121,8 @@ model:
     use_seed: false
     segmentations_path: None
     segmentation_classes: 4
+#    segmentation_classes: 5  # N + 1 (bg) channels, if multiclass segmentation
+#    segmentation_mode: multiclass
     complex_data: false
     batch_size: 1
     shuffle: true
@@ -138,6 +166,8 @@ model:
     use_seed: true
     segmentations_path: None
     segmentation_classes: 4
+#    segmentation_classes: 5  # N + 1 (bg) channels, if multiclass segmentation
+#    segmentation_mode: multiclass
     complex_data: false
     batch_size: 1
     shuffle: false

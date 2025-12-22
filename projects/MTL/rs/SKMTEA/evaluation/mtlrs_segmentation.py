@@ -75,8 +75,9 @@ def main(args):
         targets = list(Path(args.targets_dir).iterdir())
 
     evaluation_type = args.evaluation_type
+    exclude_prediction_background = args.exclude_prediction_background
 
-    scores = SegmentationMetrics(METRIC_FUNCS)
+    scores = SegmentationMetrics(METRIC_FUNCS, ddof=1 if evaluation_type == "per_slice" else 0)
     for target in tqdm(targets):
         fname = str(target).rsplit("/", maxsplit=1)[-1]
         if ".h5" in fname:
@@ -92,6 +93,9 @@ def main(args):
         segmentation_labels = process_segmentation_labels(segmentation_labels)
         segmentation_labels = np.abs(segmentation_labels.astype(np.float32))
         segmentation_labels = np.where(segmentation_labels > 0.5, 1, 0)
+
+        if exclude_prediction_background:
+            predictions = predictions[:, 1:, ...]
 
         if evaluation_type == "per_slice":
             for sl in range(segmentation_labels.shape[0]):
@@ -122,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--dataset_format", choices=["skm-tea", "brats", "private"], default="private")
     parser.add_argument("--evaluation_type", choices=["per_slice", "per_volume"], default="per_slice")
+    parser.add_argument("--exclude_prediction_background", action="store_true")
     parser.add_argument("--fill_target_path", action="store_true")
     parser.add_argument("--fill_pred_path", action="store_true")
     args = parser.parse_args()

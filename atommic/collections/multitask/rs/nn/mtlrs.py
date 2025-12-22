@@ -289,24 +289,17 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                 cascades_weights = torch.logspace(-1, 0, steps=len(rs_cascade_pred)).to(target.device)
                 cascades_loss = []
                 for cascade_pred in rs_cascade_pred:
-                    time_steps_weights = torch.logspace(-1, 0, steps=len(cascade_pred)).to(target.device)
-                    if self.consecutive_slices > 1:
-                        time_steps_loss = [
-                            compute_reconstruction_loss(
-                                target.reshape(target.shape[0] * target.shape[1], *target.shape[2:]),
-                                time_step_pred.reshape(
-                                    time_step_pred.shape[0] * time_step_pred.shape[1], *time_step_pred.shape[2:]
-                                ),
-                                sensitivity_maps,
-                            )
-                            for time_step_pred in cascade_pred
-                        ]
-                    else:
-                        time_steps_loss = [
-                            compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
-                            for time_step_pred in cascade_pred
-                        ]
-                    cascade_loss = sum(x * w for x, w in zip(time_steps_loss, time_steps_weights)) / len(cascade_pred)
+                    time_steps_weights = torch.logspace(-1, 0, steps=self.reconstruction_module_time_steps).to(
+                        target.device
+                    )
+                    time_steps_loss = [
+                        compute_reconstruction_loss(target, time_step_pred, sensitivity_maps)
+                        for time_step_pred in cascade_pred
+                    ]
+                    cascade_loss = (
+                        sum(x * w for x, w in zip(time_steps_loss, time_steps_weights))
+                        / self.reconstruction_module_time_steps
+                    )
                     cascades_loss.append(cascade_loss)
                 rs_cascade_loss = sum(x * w for x, w in zip(cascades_loss, cascades_weights)) / len(rs_cascade_pred)
                 rs_cascades_loss.append(rs_cascade_loss)
