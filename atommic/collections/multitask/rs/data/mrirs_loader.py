@@ -416,8 +416,6 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 kspace = kspace[:, :, 0, :] + kspace[:, :, 1, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2-mc":
                 kspace = np.concatenate([kspace[:, :, 0, :], kspace[:, :, 1, :]], axis=-1)
-            elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1-echo2":
-                kspace = kspace
             else:
                 warnings.warn(
                     f"Dataset format {dataset_format} is either not supported or set to None. "
@@ -426,6 +424,7 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 kspace = kspace[:, :, 0, :]
 
             sensitivity_map = self.get_consecutive_slices(hf, "maps", dataslice).astype(np.complex64)
+
             if self.consecutive_slices > 1:
                 sensitivity_map = sensitivity_map[:, 48:-48, 40:-40]
                 kspace = kspace[:, 48:-48, 40:-40]
@@ -473,10 +472,15 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             # combine Lateral Meniscus and Medial Meniscus
             medial_meniscus = lateral_meniscus + medial_meniscus
 
+            if self.consecutive_slices > 1:
+                segmentation_labels_dim = 1
+            else:
+                segmentation_labels_dim = 0
+
             # stack the labels in the last dimension
             segmentation_labels = np.stack(
                 [patellar_cartilage, femoral_cartilage, tibial_cartilage, medial_meniscus],
-                axis=-1,
+                axis=segmentation_labels_dim,
             )
 
             # TODO: This is hardcoded on the SKM-TEA side, how to generalize this?
@@ -498,7 +502,9 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 metadata["noise"] = 1.0
 
             attrs.update(metadata)
-        if not is_none(dataset_format) and dataset_format == "skm-tea-echo1-echo2":
+
+        # TODO: check this
+        if not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2":
             if self.consecutive_slices > 1:
                 segmentation_labels = np.transpose(segmentation_labels, (0, 3, 1, 2))
                 kspace = np.transpose(kspace, (3, 0, 4, 1, 2))
@@ -507,7 +513,7 @@ class SKMTEARSMRIDataset(RSMRIDataset):
                 segmentation_labels = np.transpose(segmentation_labels, (2, 0, 1))
                 kspace = np.transpose(kspace, (2, 3, 0, 1))
                 sensitivity_map = np.transpose(sensitivity_map, (3, 2, 0, 1))
-        elif self.consecutive_slices > 1 and not is_none(dataset_format) and dataset_format != "skm-tea-echo1-echo2":
+        elif self.consecutive_slices > 1 and not is_none(dataset_format) and dataset_format != "skm-tea-echo1+echo2":
             segmentation_labels = np.transpose(segmentation_labels, (0, 3, 1, 2))
             kspace = np.transpose(kspace, (0, 3, 1, 2))
             sensitivity_map = np.transpose(sensitivity_map.squeeze(), (0, 3, 1, 2))
@@ -515,7 +521,9 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             segmentation_labels = np.transpose(segmentation_labels, (2, 0, 1))
             kspace = np.transpose(kspace, (2, 0, 1))
             sensitivity_map = np.transpose(sensitivity_map.squeeze(), (2, 0, 1))
+
         attrs["log_image"] = bool(dataslice in self.indices_to_log)
+
         return (
             (
                 kspace,

@@ -333,13 +333,16 @@ def test_mtlmrirs(shape, cfg, center_fractions, accelerations, dimensionality, s
 
     output = torch.cat(outputs)
     mask = torch.cat(masks)
+
     coil_dim = cfg.get("coil_dim")
     consecutive_slices = cfg.get("consecutive_slices")
-    num_echoes = cfg.get("num_echoes")
+    num_echoes = cfg.get("num_echoes")  # TODO: check this
+
     if consecutive_slices > 1:
         x = torch.stack([x for _ in range(consecutive_slices)], 1)
-        mask = torch.stack([mask for _ in range(consecutive_slices)], 1)
+        mask = torch.stack([mask for _ in range(consecutive_slices)], 1)  # TODO: check this
         output = torch.stack([output for _ in range(consecutive_slices)], 1)
+
     cfg = OmegaConf.create(cfg)
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
 
@@ -397,6 +400,7 @@ def test_mtlmrirs(shape, cfg, center_fractions, accelerations, dimensionality, s
             pred_segmentation = pred_segmentation.reshape(
                 pred_segmentation.shape[0] * pred_segmentation.shape[1], *pred_segmentation.shape[2:]
             )
+        # TODO: check this
         if num_echoes > 1:  # Model only makes one segmentation of multiple echoes
             pred_segmentation = pred_segmentation.repeat(num_echoes, 1, 1, 1)
         if pred_segmentation.shape != output.shape:

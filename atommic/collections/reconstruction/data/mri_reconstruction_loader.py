@@ -692,8 +692,6 @@ class SKMTEAReconstructionMRIDataset(MRIDataset):
                 kspace = kspace[:, :, 0, :] + kspace[:, :, 1, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2-mc":
                 kspace = np.concatenate([kspace[:, :, 0, :], kspace[:, :, 1, :]], axis=-1)
-            elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1-echo2":
-                kspace = kspace
             else:
                 warnings.warn(
                     f"Dataset format {dataset_format} is either not supported or set to None. "

@@ -723,6 +723,10 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             If self.accumulate_loss is True, returns an accumulative result of all intermediate losses.
             Otherwise, returns the loss of the last intermediate loss.
         """
+        # TODO: check why this have to go
+        # if self.consecutive_slices > 1:
+        #     batch_size, slices = target_segmentation.shape[:2]
+        #     target_segmentation = target_segmentation.reshape(batch_size * slices, *target_segmentation.shape[2:])
 
         segmentation_loss = self.process_segmentation_loss(target_segmentation, predictions_segmentation, attrs)
 
@@ -794,21 +798,31 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         if isinstance(predictions_segmentation, list):
             while isinstance(predictions_segmentation, list):
                 predictions_segmentation = predictions_segmentation[-1]
+
         if self.consecutive_slices > 1:
             # reshape the target and prediction to [batch_size, self.consecutive_slices, nr_classes, n_x, n_y]
-            batch_size = int(target_segmentation.shape[0] / self.consecutive_slices)
-            predictions_segmentation = predictions_segmentation.reshape(
-                batch_size, self.consecutive_slices, *predictions_segmentation.shape[1:]
-            )
+            batch_size = int(target_segmentation.shape[0] // self.consecutive_slices)
             target_segmentation = target_segmentation.reshape(
                 batch_size, self.consecutive_slices, *target_segmentation.shape[1:]
             )
+            # TODO: check why this have to go
+            # target_reconstruction = target_reconstruction.reshape(
+            #     batch_size, self.consecutive_slices, *target_reconstruction.shape[2:]
+            # )
+            predictions_segmentation = predictions_segmentation.reshape(
+                batch_size, self.consecutive_slices, *predictions_segmentation.shape[2:]
+            )
+            # TODO: check why this have to go
+            # predictions_reconstruction = predictions_reconstruction.reshape(
+            #     batch_size, self.consecutive_slices, *predictions_reconstruction.shape[1:]
+            # )
 
             target_segmentation = target_segmentation[:, self.consecutive_slices // 2]
             target_reconstruction = target_reconstruction[:, self.consecutive_slices // 2]
             predictions_segmentation = predictions_segmentation[:, self.consecutive_slices // 2]
             predictions_reconstruction = predictions_reconstruction[:, self.consecutive_slices // 2]
 
+        # TODO: check this
         if self.num_echoes > 1:
             # find the batch size
             batch_size = target_reconstruction.shape[0] / self.num_echoes
@@ -906,10 +920,12 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                     )
 
                 if self.use_reconstruction_module:
+                    # TODO: check this
                     if self.num_echoes > 1:
                         for i in range(output_target_reconstruction.shape[0]):
                             self.log_image(
-                                f"{key}/a/reconstruction_abs/target echo: {i+1}/predictions echo: {i+1}/error echo: {i+1}",
+                                f"{key}/a/reconstruction_abs/target echo: {i+1}/predictions echo: {i+1}/error echo: "
+                                f"{i+1}",
                                 torch.cat(
                                     [
                                         output_target_reconstruction[i],
@@ -1269,6 +1285,8 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                     self.coil_combination_method,
                     self.coil_dim,
                 )
+
+        # TODO: check this
         if self.num_echoes > 1:
             # stack the echoes along the batch dimension
             kspace = kspace.view(-1, *kspace.shape[2:])
@@ -1279,6 +1297,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             )
             target_reconstruction = target_reconstruction.view(-1, *target_reconstruction.shape[2:])
             sensitivity_maps = torch.repeat_interleave(sensitivity_maps, repeats=kspace.shape[0], dim=0).squeeze(1)
+
         # Model forward pass
         predictions_reconstruction, predictions_segmentation = self.forward(
             y,
@@ -1288,6 +1307,8 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             target_reconstruction,
             attrs["noise"],
         )
+
+        # TODO: check this
         if self.consecutive_slices > 1:
             ## reshape the target and prediction segmentation to [batch_size * consecutive_slices, nr_classes, n_x, n_y]
             batch_size, slices = target_segmentation.shape[:2]
@@ -1663,6 +1684,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 while isinstance(predictions_reconstruction, list):
                     predictions_reconstruction = predictions_reconstruction[-1]
 
+            # TODO: check this
             if self.consecutive_slices > 1:
                 # reshape the target and prediction to [batch_size, self.consecutive_slices, nr_classes, n_x, n_y]
                 batch_size = int(target_segmentation.shape[0] / self.consecutive_slices)
@@ -1672,13 +1694,11 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
                 predictions_segmentation = predictions_segmentation[:, self.consecutive_slices // 2]
                 predictions_reconstruction = predictions_reconstruction[:, self.consecutive_slices // 2]
 
+            # TODO: check this
             if self.num_echoes > 1:
                 # find the batch size
                 batch_size = target_reconstruction.shape[0] / self.num_echoes
                 # reshape to [batch_size, num_echoes, n_x, n_y]
-                target_reconstruction = target_reconstruction.reshape(
-                    (int(batch_size), self.num_echoes, *target_reconstruction.shape[1:])
-                )
                 predictions_reconstruction = predictions_reconstruction.reshape(
                     (int(batch_size), self.num_echoes, *predictions_reconstruction.shape[1:])
                 )
@@ -1917,6 +1937,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         for fname in segmentations:
             segmentations[fname] = np.stack([out for _, out in sorted(segmentations[fname])])
 
+        # TODO: check why this have to go
         # if self.consecutive_slices > 1:
         #     # iterate over the slices and always keep the middle slice
         #     for fname in segmentations:
@@ -1931,6 +1952,7 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             for fname in reconstructions:
                 reconstructions[fname] = np.stack([out for _, out in sorted(reconstructions[fname])])
 
+            # TODO: check why this have to go
             # if self.consecutive_slices > 1: #TODO remove, is already done in the test_step to minimize memory load
             #     # iterate over the slices and always keep the middle slice
             #     for fname in reconstructions:
@@ -1999,7 +2021,6 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             "skm-tea-echo2",
             "skm-tea-echo1+echo2",
             "skm-tea-echo1+echo2-mc",
-            "skm-tea-echo1-echo2",
         ):
             dataloader = mrirs_loader.SKMTEARSMRIDataset
         else:
