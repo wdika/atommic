@@ -85,7 +85,6 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
 
         self.coil_dim = cfg_dict.get("coil_dim", 1)
         self.consecutive_slices = cfg_dict.get("consecutive_slices", 1)
-        self.num_echoes  # TODO: what's happening here?
 
         self.rs_cascades = cfg_dict.get("joint_reconstruction_segmentation_module_cascades", 1)
         self.rs_module = torch.nn.ModuleList(
@@ -103,7 +102,6 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                     consecutive_slices=self.consecutive_slices,
                     coil_combination_method=cfg_dict.get("coil_combination_method", "SENSE"),
                     normalize_segmentation_output=cfg_dict.get("normalize_segmentation_output", True),
-                    num_echoes=self.num_echoes,  # TODO: check this
                 )
                 for _ in range(self.rs_cascades)
             ]
@@ -189,6 +187,7 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                 hx = [hx[i] + hidden_states[i] for i in range(len(hx))]
 
             init_reconstruction_pred = torch.view_as_real(init_reconstruction_pred)
+
         return pred_reconstructions, pred_segmentation
 
     def process_reconstruction_loss(  # noqa: MC0001
@@ -308,16 +307,5 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
         else:
             # keep the last prediction of the last cascade of the last rs cascade
             prediction = prediction[-1][-1][-1]
-            # TODO: check this
-            if self.consecutive_slices > 1:
-                loss = compute_reconstruction_loss(
-                    target.reshape(target.shape[0] * target.shape[1], *target.shape[2:]),
-                    prediction.reshape(prediction.shape[0] * prediction.shape[1], *prediction.shape[2:]),
-                    sensitivity_maps,
-                )
-            loss = compute_reconstruction_loss(
-                target,
-                prediction,
-                sensitivity_maps,
-            )
+            loss = compute_reconstruction_loss(target, prediction, sensitivity_maps)
         return loss

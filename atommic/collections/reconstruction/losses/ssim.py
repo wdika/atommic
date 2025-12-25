@@ -56,12 +56,6 @@ class SSIMLoss(Loss):
         if not isinstance(self.w, torch.Tensor):  # type: ignore  # pylint: disable=access-member-before-definition
             raise AssertionError
 
-        # TODO: check this
-        if X.dim() == 3:
-            X = X.unsqueeze(1)
-        if Y.dim() == 3:
-            Y = Y.unsqueeze(1)
-
         # This is necessary to first assign self.w to CUDA and then in case of fp32 to avoid RuntimeError: Inference
         # tensors cannot be saved for backward.
         self.w = self.w.to(Y).clone()  # type: ignore
