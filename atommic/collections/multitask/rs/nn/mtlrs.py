@@ -160,6 +160,8 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
             init_reconstruction_pred = pred_reconstruction[-1][-1]
 
             if self.task_adaption_type == "multi_task_learning":
+                # this is the most important step of the mtlrs model, where the segmentation mask is applied to the
+                # hidden states and updates them
                 hidden_states = [
                     torch.cat(
                         [torch.abs(init_reconstruction_pred.unsqueeze(self.coil_dim) * pred_segmentation)]
@@ -170,21 +172,17 @@ class MTLRS(BaseMRIReconstructionSegmentationModel):
                     if f != 0
                 ]
 
-                if self.consecutive_slices > 1:
-                    hx = [x.unsqueeze(1) for x in hx]
-
                 # Check if the concatenated hidden states are the same size as the hidden state of the RNN
-                if hidden_states[0].shape[self.coil_dim] != hx[0].shape[self.coil_dim]:
-                    prev_hidden_states = hidden_states
-                    hidden_states = []
-                    for hs in prev_hidden_states:
-                        new_hidden_state = hs
-                        for _ in range(hx[0].shape[1] - prev_hidden_states[0].shape[1]):
-                            new_hidden_state = torch.cat(
-                                [new_hidden_state, torch.zeros_like(hx[0][:, 0, :, :]).unsqueeze(self.coil_dim)],
-                                dim=self.coil_dim,
-                            )
-                        hidden_states.append(new_hidden_state)
+                if (
+                    hidden_states[0].shape[self.coil_dim if self.consecutive_slices == 1 else self.coil_dim - 1]
+                    != hx[0].shape[self.coil_dim if self.consecutive_slices == 1 else self.coil_dim - 1]
+                ):
+                    hidden_states = [
+                        hidden_states[i].reshape(
+                            hidden_states[0].shape[0] * self.consecutive_slices, *hidden_states[i].shape[2:]
+                        )
+                        for i in range(len(hidden_states))
+                    ]
 
                 hx = [hx[i] + hidden_states[i] for i in range(len(hx))]
 

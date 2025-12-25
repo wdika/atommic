@@ -726,6 +726,9 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         if self.consecutive_slices > 1:
             batch_size, slices = target_segmentation.shape[:2]
             target_segmentation = target_segmentation.reshape(batch_size * slices, *target_segmentation.shape[2:])
+            predictions_segmentation = predictions_segmentation.reshape(  # type: ignore
+                batch_size * slices, *predictions_segmentation.shape[2:]  # type: ignore
+            )
 
         segmentation_loss = self.process_segmentation_loss(target_segmentation, predictions_segmentation, attrs)
 
@@ -797,26 +800,6 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         if isinstance(predictions_segmentation, list):
             while isinstance(predictions_segmentation, list):
                 predictions_segmentation = predictions_segmentation[-1]
-
-        if self.consecutive_slices > 1:
-            # reshape the target and prediction to [batch_size, self.consecutive_slices, nr_classes, n_x, n_y]
-            batch_size = target_segmentation.shape[0] // self.consecutive_slices
-            target_segmentation = target_segmentation.reshape(
-                batch_size, self.consecutive_slices, *target_segmentation.shape[1:]
-            )
-            target_reconstruction = target_reconstruction.reshape(
-                batch_size, self.consecutive_slices, *target_reconstruction.shape[2:]
-            )
-            predictions_segmentation = predictions_segmentation.reshape(
-                batch_size, self.consecutive_slices, *predictions_segmentation.shape[2:]
-            )
-            predictions_reconstruction = predictions_reconstruction.reshape(
-                batch_size, self.consecutive_slices, *predictions_reconstruction.shape[1:]
-            )
-            target_segmentation = target_segmentation[:, self.consecutive_slices // 2]
-            target_reconstruction = target_reconstruction[:, self.consecutive_slices // 2]
-            predictions_segmentation = predictions_segmentation[:, self.consecutive_slices // 2]
-            predictions_reconstruction = predictions_reconstruction[:, self.consecutive_slices // 2]
 
         fname = attrs["fname"]
         slice_idx = attrs["slice_idx"]
@@ -1267,33 +1250,74 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
             for class_idx, thres in enumerate(self.segmentation_classes_thresholds):
                 if self.segmentation_activation == "sigmoid":
                     if isinstance(predictions_segmentation, list):
-                        cond = [torch.sigmoid(pred[:, class_idx]) for pred in predictions_segmentation]
+                        cond = [
+                            torch.sigmoid(pred[:, class_idx])
+                            if (self.consecutive_slices == 1 or self.dimensionality == 2)
+                            else torch.sigmoid(pred[:, :, class_idx])
+                            for pred in predictions_segmentation
+                        ]
                     else:
-                        cond = torch.sigmoid(predictions_segmentation[:, class_idx])
+                        cond = (
+                            torch.sigmoid(predictions_segmentation[:, class_idx])
+                            if (self.consecutive_slices == 1 or self.dimensionality == 2)
+                            else torch.sigmoid(predictions_segmentation[:, :, class_idx])
+                        )
                 elif self.segmentation_activation == "softmax":
                     if isinstance(predictions_segmentation, list):
-                        cond = [torch.softmax(pred[:, class_idx], dim=1) for pred in predictions_segmentation]
+                        cond = [
+                            torch.softmax(pred[:, class_idx], dim=1)
+                            if (self.consecutive_slices == 1 or self.dimensionality == 2)
+                            else torch.softmax(pred[:, :, class_idx], dim=1)
+                            for pred in predictions_segmentation
+                        ]
                     else:
-                        cond = torch.softmax(predictions_segmentation[:, class_idx], dim=1)
+                        cond = (
+                            torch.softmax(predictions_segmentation[:, class_idx], dim=1)
+                            if (self.consecutive_slices == 1 or self.dimensionality == 2)
+                            else torch.softmax(predictions_segmentation[:, :, class_idx], dim=1)
+                        )
                 else:
                     if isinstance(predictions_segmentation, list):
-                        cond = [pred[:, class_idx] for pred in predictions_segmentation]
+                        cond = [
+                            pred[:, class_idx]
+                            if self.consecutive_slices == 1 or self.dimensionality == 2
+                            else pred[:, :, class_idx]
+                            for pred in predictions_segmentation
+                        ]
                     else:
-                        cond = predictions_segmentation[:, class_idx]
+                        cond = (
+                            predictions_segmentation[:, class_idx]
+                            if (self.consecutive_slices == 1 or self.dimensionality == 2)
+                            else predictions_segmentation[:, :, class_idx]
+                        )
 
                 if isinstance(predictions_segmentation, list):
                     for idx, pred in enumerate(predictions_segmentation):
-                        predictions_segmentation[idx][:, class_idx] = torch.where(
-                            cond[idx] >= thres,
-                            predictions_segmentation[idx][:, class_idx],
-                            torch.zeros_like(predictions_segmentation[idx][:, class_idx]),
-                        )
+                        if self.consecutive_slices == 1 or self.dimensionality == 2:
+                            predictions_segmentation[idx][:, class_idx] = torch.where(
+                                cond[idx] >= thres,
+                                predictions_segmentation[idx][:, class_idx],
+                                torch.zeros_like(predictions_segmentation[idx][:, class_idx]),
+                            )
+                        else:
+                            predictions_segmentation[idx][:, :, class_idx] = torch.where(
+                                cond[idx] >= thres,
+                                predictions_segmentation[idx][:, :, class_idx],
+                                torch.zeros_like(predictions_segmentation[idx][:, :, class_idx]),
+                            )
                 else:
-                    predictions_segmentation[:, class_idx] = torch.where(
-                        cond >= thres,
-                        predictions_segmentation[:, class_idx],
-                        torch.zeros_like(predictions_segmentation[:, class_idx]),
-                    )
+                    if self.consecutive_slices == 1 or self.dimensionality == 2:
+                        predictions_segmentation[:, class_idx] = torch.where(
+                            cond >= thres,
+                            predictions_segmentation[:, class_idx],
+                            torch.zeros_like(predictions_segmentation[:, class_idx]),
+                        )
+                    else:
+                        predictions_segmentation[:, :, class_idx] = torch.where(
+                            cond >= thres,
+                            predictions_segmentation[:, :, class_idx],
+                            torch.zeros_like(predictions_segmentation[:, :, class_idx]),
+                        )
 
         # Noise-to-Recon forward pass, if Noise-to-Recon is used.
         predictions_reconstruction_n2r = None
@@ -1310,11 +1334,13 @@ class BaseMRIReconstructionSegmentationModel(atommic_common.nn.base.BaseMRIModel
         # Get acceleration factor from acceleration list, if multiple accelerations are used. Or if batch size > 1.
         if isinstance(acceleration, list):
             if acceleration[0].shape[0] > 1:
-                acceleration[0] = acceleration[0][0]
+                for i in enumerate(acceleration):
+                    acceleration[i] = acceleration[i][0]
             acceleration = np.round(acceleration[r].item())
         else:
-            if acceleration.shape[0] > 1:  # type: ignore
-                acceleration = acceleration[0]  # type: ignore
+            if acceleration[0].shape[0] > 1:  # type: ignore
+                for i in enumerate(acceleration):  # type: ignore
+                    acceleration[i] = acceleration[i][0]  # type: ignore
             acceleration = np.round(acceleration.item())  # type: ignore
 
         # Pass r to the attrs dictionary, so that it can be used in unnormalize_for_loss_or_log if needed.

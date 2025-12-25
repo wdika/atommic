@@ -409,26 +409,32 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             kspace = self.get_consecutive_slices(hf, "kspace", dataslice).astype(np.complex64)
 
             if not is_none(dataset_format) and dataset_format == "skm-tea-echo1":
-                kspace = kspace[:, :, 0, :]
+                kspace = kspace[..., 0, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo2":
-                kspace = kspace[:, :, 1, :]
+                kspace = kspace[..., 1, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2":
-                kspace = kspace[:, :, 0, :] + kspace[:, :, 1, :]
+                kspace = kspace[..., 0, :] + kspace[..., 1, :]
             elif not is_none(dataset_format) and dataset_format == "skm-tea-echo1+echo2-mc":
-                kspace = np.concatenate([kspace[:, :, 0, :], kspace[:, :, 1, :]], axis=-1)
+                kspace = np.concatenate([kspace[..., 0, :], kspace[..., 1, :]], axis=-1)
             else:
                 warnings.warn(
                     f"Dataset format {dataset_format} is either not supported or set to None. "
                     "Using by default only the first echo."
                 )
-                kspace = kspace[:, :, 0, :]
-
-            kspace = kspace[48:-48, 40:-40]
+                kspace = kspace[..., 0, :]
 
             sensitivity_map = self.get_consecutive_slices(hf, "maps", dataslice).astype(np.complex64)
             sensitivity_map = sensitivity_map[..., 0]
 
-            sensitivity_map = sensitivity_map[48:-48, 40:-40]
+            if dataset_format == "skm-tea-echo1+echo2-mc":
+                sensitivity_map = np.concatenate([sensitivity_map, sensitivity_map], axis=-1)
+
+            if self.consecutive_slices > 1:
+                sensitivity_map = sensitivity_map[:, 48:-48, 40:-40]
+                kspace = kspace[:, 48:-48, 40:-40]
+            else:
+                sensitivity_map = sensitivity_map[48:-48, 40:-40]
+                kspace = kspace[48:-48, 40:-40]
 
             if masking == "custom":
                 mask = np.array([])
@@ -484,12 +490,11 @@ class SKMTEARSMRIDataset(RSMRIDataset):
             # TODO: This is hardcoded on the SKM-TEA side, how to generalize this?
             # We need to crop the segmentation labels in the frequency domain to reduce the FOV.
             segmentation_labels = np.fft.fftshift(np.fft.fft2(segmentation_labels))
-            segmentation_labels = segmentation_labels[:, 48:-48, 40:-40]
+            segmentation_labels = segmentation_labels[..., 48:-48, 40:-40]
             segmentation_labels = np.fft.ifft2(np.fft.ifftshift(segmentation_labels)).real
             segmentation_labels = np.where(segmentation_labels > 0.5, 1.0, 0.0)  # Make sure the labels are binary.
 
             imspace = np.empty([])
-
             initial_prediction = np.empty([])
             attrs = dict(hf.attrs)
 
@@ -501,8 +506,12 @@ class SKMTEARSMRIDataset(RSMRIDataset):
 
             attrs.update(metadata)
 
-        kspace = np.transpose(kspace, (2, 0, 1))
-        sensitivity_map = np.transpose(sensitivity_map.squeeze(), (2, 0, 1))
+        if self.consecutive_slices == 1:
+            kspace = np.transpose(kspace, (2, 0, 1))
+            sensitivity_map = np.transpose(sensitivity_map.squeeze(), (2, 0, 1))
+        else:
+            kspace = np.transpose(kspace, (0, 3, 1, 2))
+            sensitivity_map = np.transpose(sensitivity_map.squeeze(), (0, 3, 1, 2))
 
         attrs["log_image"] = bool(dataslice in self.indices_to_log)
 
