@@ -42,9 +42,11 @@ model:
     - false
   reconstruction_module_depth: 2
   reconstruction_module_time_steps: 8
-  reconstruction_module_conv_dim: 2
+#  reconstruction_module_conv_dim: 2
+  reconstruction_module_conv_dim: 3
   reconstruction_module_num_cascades: 1
-  reconstruction_module_dimensionality: 2
+#  reconstruction_module_dimensionality: 2
+  reconstruction_module_dimensionality: 3
   reconstruction_module_no_dc: true
   reconstruction_module_keep_prediction: true
   reconstruction_module_accumulate_predictions: true
@@ -127,33 +129,35 @@ model:
   unnormalize_log_outputs: false
   metric_computation_mode: per_slice  # per_slice: metrics are computed slice-wise and aggregated all together, per_volume: metrics are computed volume-wise and averaged by volume
   complex_data: true
-  consecutive_slices: 1
-  dimensionality: 2
+  consecutive_slices: 7
+#  dimensionality: 2
+  dimensionality: 3
   coil_combination_method: SENSE
-  coil_dim: 1
+  coil_dim: 2
   estimate_coil_sensitivity_maps_with_nn: false
   ssdu: false
   n2r: false
 
   train_ds:
-    data_path: data_parent_dir/skm-tea/v1-release/json/files_recon_calib-24_train.json
+    data_path: /skm-tea/v1-release/json/files_recon_calib-24_train.json
     coil_sensitivity_maps_path: None
     mask_path: None
     noise_path: None
     initial_predictions_path: None
-    dataset_format: skm-tea-echo1
-    sample_rate: 1
+    dataset_format: skm-tea-echo1+echo2-mc
+    sample_rate: 0.01
     volume_sample_rate: None
     use_dataset_cache: false
     dataset_cache_file: None
     num_cols: None
-    consecutive_slices: 1
+    consecutive_slices: 7
     data_saved_per_slice: false
     complex_target: true
     apply_prewhitening: false
     apply_gcc: false
     coil_combination_method: SENSE
-    dimensionality: 2
+#    dimensionality: 2
+    dimensionality: 3
     mask_args:
       type: poisson2d  # the mask will be loaded from the dataset, but we need to specify the type here
       accelerations:
@@ -178,39 +182,41 @@ model:
       - -2
       - -1
     coil_dim: 1
+#    coil_dim: 2
     use_seed: false
-    segmentations_path: data_parent_dir/skm-tea/v1-release/segmentation_masks/raw-data-track
+    segmentations_path: /skm-tea/v1-release/segmentation_masks/raw-data-track
     include_background_label: false
     segmentation_classes: 4
 #    segmentation_classes: 5  # N + 1 (bg) channels, if multiclass segmentation
 #    segmentation_mode: multiclass
     complex_data: true
-    batch_size: 1
+    batch_size: 1  # skm-tea contains coils 16 & 32 so we cannot just increase the batch size like this
     shuffle: true
     num_workers: 4
     pin_memory: false
     drop_last: false
 
   validation_ds:
-    data_path: data_parent_dir/skm-tea/v1-release/json/files_recon_calib-24_val.json
+    data_path: /skm-tea/v1-release/json/files_recon_calib-24_val.json
     coil_sensitivity_maps_path: None
     mask_path: None
     noise_path: None
     initial_predictions_path: None
-    dataset_format: skm-tea-echo1
-    sample_rate: 1
+    dataset_format: skm-tea-echo1+echo2-mc
+    sample_rate: 0.01
     volume_sample_rate: None
     use_dataset_cache: false
     dataset_cache_file: None
     num_cols: None
-    consecutive_slices: 1
+    consecutive_slices: 7
     data_saved_per_slice: false
     complex_target: true
-    log_images_rate: 1e-2
+    log_images_rate: 0
     apply_prewhitening: false
     apply_gcc: false
     coil_combination_method: SENSE
-    dimensionality: 2
+#    dimensionality: 2
+    dimensionality: 3
     mask_args:
       type: poisson2d  # the mask will be loaded from the dataset, but we need to specify the type here
       accelerations:
@@ -235,14 +241,15 @@ model:
       - -2
       - -1
     coil_dim: 1
+#    coil_dim: 2
     use_seed: true
-    segmentations_path: data_parent_dir/skm-tea/v1-release/segmentation_masks/raw-data-track
+    segmentations_path: /skm-tea/v1-release/segmentation_masks/raw-data-track
     include_background_label: false
     segmentation_classes: 4
 #    segmentation_classes: 5  # N + 1 (bg) channels, if multiclass segmentation
 #    segmentation_mode: multiclass
     complex_data: true
-    batch_size: 1
+    batch_size: 1  # skm-tea contains coils 16 & 32 so we cannot just increase the batch size like this
     shuffle: false
     num_workers: 4
     pin_memory: false
@@ -275,7 +282,7 @@ trainer:
   max_steps: -1
 
 exp_manager:
-  exp_dir: output_dir/atommic/mltrs/trained_models/SKMTEA/MTLRS_SENSE
+  exp_dir: /atommic/mltrs/trained_models/SKMTEA/MTLRS_SENSE_3D
   create_tensorboard_logger: true
   create_wandb_logger: false
   files_to_copy: [ ]
