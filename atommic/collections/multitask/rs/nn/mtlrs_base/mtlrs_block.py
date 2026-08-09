@@ -82,8 +82,6 @@ class MTLRSBlock(torch.nn.Module):
         self.spatial_dims = spatial_dims
         self.coil_dim = coil_dim
         self.dimensionality = dimensionality
-        if self.dimensionality != 2:
-            raise NotImplementedError(f"Currently only 2D is supported for segmentation, got {self.dimensionality}D.")
         self.consecutive_slices = consecutive_slices
         self.coil_combination_method = coil_combination_method
 
@@ -237,7 +235,6 @@ class MTLRSBlock(torch.nn.Module):
                 )
                 cascades_predictions = []
                 for i, cascade in enumerate(self.reconstruction_module):
-                    # Forward pass through the cascades
                     prediction_slice, hx = cascade(
                         prediction_slice,
                         y_slice,
@@ -248,6 +245,11 @@ class MTLRSBlock(torch.nn.Module):
                         sigma,
                         keep_prediction=False if i == 0 else self.keep_prediction,
                     )
+                    if (prediction_slice[0].shape[0] == self.consecutive_slices) and (
+                        hx[0].shape[0] == self.consecutive_slices
+                    ):
+                        prediction_slice = [pred[slice_idx].unsqueeze(0) for pred in prediction_slice]
+                        hx = [h[slice_idx].unsqueeze(0) for h in hx]
                     time_steps_predictions = [torch.view_as_complex(pred) for pred in prediction_slice]
                     cascades_predictions.append(torch.stack(time_steps_predictions, dim=0))
                 pred_reconstruction_slices.append(torch.stack(cascades_predictions, dim=0))
@@ -267,6 +269,8 @@ class MTLRSBlock(torch.nn.Module):
                 if init_reconstruction_pred is None or init_reconstruction_pred.dim() < 4
                 else init_reconstruction_pred
             )
+            if self.consecutive_slices > 1 and self.reconstruction_module_dimensionality == 3:
+                mask = torch.concatenate([mask.unsqueeze(self.coil_dim)] * y.shape[1], 1)
             sigma = 1.0
             cascades_predictions = []
             for i, cascade in enumerate(self.reconstruction_module):
@@ -292,11 +296,13 @@ class MTLRSBlock(torch.nn.Module):
             _pred_reconstruction = _pred_reconstruction[-1]
         if _pred_reconstruction.shape[-1] != 2:
             _pred_reconstruction = torch.view_as_real(_pred_reconstruction)
+
         if self.consecutive_slices > 1 and _pred_reconstruction.dim() == 5:
             _pred_reconstruction = _pred_reconstruction.reshape(
                 _pred_reconstruction.shape[0] * _pred_reconstruction.shape[1],
                 *_pred_reconstruction.shape[2:],
             )
+
         if _pred_reconstruction.shape[-1] == 2:
             if self.input_channels == 1:
                 _pred_reconstruction = torch.view_as_complex(_pred_reconstruction).unsqueeze(1)
